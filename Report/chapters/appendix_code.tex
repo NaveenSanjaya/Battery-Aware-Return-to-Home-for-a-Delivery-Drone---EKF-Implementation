@@ -1,0 +1,41 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Appendix A: MATLAB code   (the \chapter command is in main.tex)
+%
+% Files are read directly from the code folder with \codefile (defined in main.tex), so the
+% appendix always shows the current code. If the code folder is not next to Report/ (for example
+% on Overleaf), change \codedir in main.tex or upload the code folder too. A missing file prints a
+% visible TODO instead of stopping the compile.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+This appendix lists the MATLAB code. The folder structure is described in Section~\ref{sec:i_structure}.
+
+\section{Configuration}
+\codefile{config/battery_params.m}{\texttt{config/battery\_params.m}}
+\codefile{config/ocv_lookup.m}{\texttt{config/ocv\_lookup.m}}
+
+\section{Simulator}
+\codefile{sim/battery_true_init.m}{\texttt{sim/battery\_true\_init.m}}
+\codefile{sim/battery_true_step.m}{\texttt{sim/battery\_true\_step.m}}
+\codefile{sim/read_sensors.m}{\texttt{sim/read\_sensors.m}}
+\codefile{sim/make_mission.m}{\texttt{sim/make\_mission.m}}
+\codefile{sim/drone_init.m}{\texttt{sim/drone\_init.m}}
+\codefile{sim/drone_step.m}{\texttt{sim/drone\_step.m}}
+
+\section{Estimators}
+\todo{Add \texttt{estimators/ekf\_init.m}, \texttt{estimators/ekf\_step.m} and \texttt{estimators/coulomb\_count.m} with \texttt{\textbackslash codefile} once they exist.}
+% \codefile{estimators/ekf_init.m}{\texttt{estimators/ekf\_init.m}}
+% \codefile{estimators/ekf_step.m}{\texttt{estimators/ekf\_step.m}}
+% \codefile{estimators/coulomb_count.m}{\texttt{estimators/coulomb\_count.m}}
+
+\section{Decision rule}
+\todo{Add \texttt{decision/p\_safe\_return.m} and \texttt{decision/rth\_policies.m} once they exist.}
+% \codefile{decision/p_safe_return.m}{\texttt{decision/p\_safe\_return.m}}
+% \codefile{decision/rth_policies.m}{\texttt{decision/rth\_policies.m}}
+
+\section{Main scripts}
+\codefile{main_day2_simulator.m}{\texttt{main\_day2\_simulator.m}}
+% \codefile{main_single_flight.m}{\texttt{main\_single\_flight.m}}
+% \codefile{main_monte_carlo.m}{\texttt{main\_monte\_carlo.m}}
+
+\section{Learning exercise}
+\codefile{learning/day1_ekf_by_hand.m}{\texttt{learning/day1\_ekf\_by\_hand.m}}

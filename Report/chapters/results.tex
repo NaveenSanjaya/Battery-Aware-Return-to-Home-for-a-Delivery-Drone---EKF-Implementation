@@ -1,0 +1,157 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Chapter 5: Results   (the \chapter command is in main.tex)
+%
+% One section per block of work. Figures for each project day go in figures/ with a dayN_ prefix
+% (e.g. figures/day3_soc_e1.png). Only numbers from actual runs go in this chapter.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+This chapter first checks that the simulator behaves as intended (Section~\ref{sec:r_sim}). It then presents the estimation experiments E1--E8 (Section~\ref{sec:r_estimation}), the decisions of the four policies on one flight (Section~\ref{sec:r_single_rth}), the Monte Carlo comparison (Section~\ref{sec:r_mc}) and the risk-threshold sweep (Section~\ref{sec:r_sweep}).
+
+%--------------------------------------------------------------------------------------------------
+\section{Simulator verification}\label{sec:r_sim}
+%--------------------------------------------------------------------------------------------------
+
+Before any filter is added, the simulator must produce believable data: the voltage should sag under load, change in the right direction at each phase change, and stay above the cut-off on a mission that is meant to be safe. This section reports one test flight made with \texttt{main\_day2\_simulator.m} (Section~\ref{sec:i_loop}).
+
+\subsection{Set-up}
+
+The drone flew the \emph{short} mission (three drop-offs, Section~\ref{sec:m_mission}) with no wind. The true battery started at rest at 95\% SoC and used the true parameters of Table~\ref{tab:m_params}. The current sensor had a bias of $+0.5$\,A and noise of 0.2\,A; the voltage sensor had noise of 10\,mV. The random seed was fixed (\texttt{rng(2)}). No estimator was running; charge counting was applied to the logged measured current after the flight. Table~\ref{tab:r_day2} summarises the flight.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Simulator test flight: summary (short mission, one run).}
+  \label{tab:r_day2}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    Quantity & Value \\
+    \midrule
+    Outcome & Landed safely \\
+    Flight time & 14.2\,min \\
+    Distance flown & 6.89\,km \\
+    True SoC, start $\rightarrow$ landing & 95\% $\rightarrow$ 18.5\% \\
+    Lowest cell voltage & 3.297\,V (cut-off 3.0\,V) \\
+    Largest voltage sag (OCV $-$ terminal voltage) & 367\,mV per cell, at take-off (30\,A) \\
+    Charge-counting SoC error at landing & $-2.3\%$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{OCV curve}
+
+Figure~\ref{fig:r_ocv} shows the OCV curve that the filter believes and the true battery's curve, 5\,mV lower. The two are almost indistinguishable by eye, yet 5\,mV corresponds to about 1\% SoC in the flat middle of the curve, so even this small offset is a real test for the filter. The right-hand axis shows the slope that will become the first entry of $H$ in \eqref{eq:m_H}. It is several times larger near empty than in the middle, so the voltage will correct the SoC much more strongly at low charge.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day2_ocv_curve.png}
+  \caption{OCV curve of the filter (solid) and of the true battery (dashed, 5\,mV lower), with the slope $d\,\mathrm{OCV}/d\,\mathrm{SoC}$ on the right axis. Notice that the slope, which sets how much the voltage can tell the EKF about the SoC, is high below about 10\% SoC and low between about 20\% and 50\%.}
+  \label{fig:r_ocv}
+\end{figure}
+
+\subsection{Mission and current}
+
+Figure~\ref{fig:r_mission} shows the flight path and the current. Two simple checks confirm that the drone model works. First, the straight legs home $\rightarrow$ drop~1 $\rightarrow$ drop~2 $\rightarrow$ drop~3 $\rightarrow$ home add up to 6.89\,km, the same as the logged distance flown, so the drone neither overshoots its targets nor cuts corners. Second, 6.89\,km at 10\,m/s takes about 689\,s; adding 30\,s of take-off, three 30\,s hovers and 40\,s of landing gives about 849\,s, or 14.2\,min, which matches the logged flight time.
+
+The current profile shows each phase clearly: 30\,A at take-off, about 15\,A in cruise, three 20\,A blocks while hovering at the drop-offs, and 18\,A while landing. The slow random load of \eqref{eq:m_wobble} makes the current wander slowly, by about 0.7\,A (one standard deviation). The measured current (grey) sits slightly above the true current (blue), because of the $+0.5$\,A bias, and is noisier.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day2_mission.png}
+  \caption{Simulator test flight. Top: flight path from home through three drop-offs and back. Bottom: true current (blue) and measured current (grey). Notice the take-off spike, the three hover blocks and the landing phase, and that the measured current runs slightly above the truth because of the sensor bias.}
+  \label{fig:r_mission}
+\end{figure}
+
+\subsection{Voltage and state of charge}
+
+Figure~\ref{fig:r_voltage} shows the voltages and the true SoC. The true SoC falls from 95\% to 18.5\%, steadily in cruise and slightly faster during take-off and hover, when the current is higher.
+
+\textbf{Voltage sag.} The gap between the OCV (dashed) and the terminal voltage (blue) is the sag. It is largest at take-off, 367\,mV per cell at 30\,A. Of this, the ohmic part alone \eqref{eq:bg_sag} is $R_0 I = 8.8\text{\,m}\Omega \times 30\text{\,A} = 264$\,mV; the rest is polarisation that builds up in the RC pairs during the 30\,s climb. A simple voltage gauge would therefore read the battery as much emptier than it is during take-off.
+
+\textbf{Steps at phase changes.} When take-off ends and the current falls from 30\,A to 15\,A, the voltage steps \emph{up}; at each drop-off, when the current rises to 20\,A for hovering, it steps \emph{down}. The instant part of each step is $R_0 \Delta I$, about 132\,mV when take-off ends and 44\,mV at the start of each hover, and the rounded part that follows is the RC voltage settling. This is the behaviour the circuit model of Figure~\ref{fig:bg_circuit} predicts.
+
+\textbf{Slowly widening gap.} Over the flight, the gap between the OCV and the terminal voltage slowly widens, even in cruise at a nearly constant current. This is the slow RC pair ($\tau_2 = 400$\,s), which exists only in the true battery and keeps charging up for most of the flight. It is the deliberate model mismatch of Section~\ref{sec:m_why_mismatch}: the EKF, with its single 30\,s RC pair, cannot represent this slow drift and will have to absorb it in its other states. Experiment E6 will show how much this costs.
+
+\textbf{Safety.} The lowest cell voltage, 3.297\,V near the end of the flight, stays about 0.3\,V above the 3.0\,V cut-off, and the drone landed with 18.5\% SoC. The short mission is therefore safe, as intended, and leaves the long mission to test the RTH rule.
+
+The figure also hints at the weakness of policy A (Table~\ref{tab:m_policies}). From around the second drop-off onwards, the loaded voltage is near or below the 3.6\,V threshold, while the true SoC is still above one half. A voltage-threshold rule would have turned back with much of the battery unused.
+% TODO (student): confirm the time at which V first stays below 3.6 V for 5 s, and the true SoC at that moment, from results/day2/day2_log.mat.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day2_voltage_soc.png}
+  \caption{Simulator test flight. Top: OCV (dashed), true terminal voltage (blue) and measured voltage (grey), per cell. Bottom: true SoC. Notice the large sag at take-off, the step up when take-off ends, the steps down during each hover, and the gap that slowly widens through the flight because of the slow RC pair that only the true battery has.}
+  \label{fig:r_voltage}
+\end{figure}
+
+\subsection{Charge counting with a biased sensor}
+
+Charge counting \eqref{eq:bg_cc}, applied to the measured current, ended the flight 2.3\% below the true SoC. Equation~\eqref{eq:bg_cc_drift} predicts this: a 0.5\,A bias over 14.2\,min removes about 0.118\,Ah, or about 2.4\% of 5\,Ah. The sign is negative because the sensor reads too high, so the counter believes more charge has been used than really has. The small difference from 2.4\% is due to the sensor noise. This drift grows linearly with time and would be larger on a longer flight or with a larger bias, and it is one of the errors the EKF is designed to remove.
+
+\subsection{Summary of the simulator check}
+
+The simulator behaves as intended. The voltage sags realistically under load, it steps in the correct direction at every phase change, the drone's distance and flight time agree with the route, the charge-counting drift matches theory, and the deliberate mismatch between the true battery and the filter's model is visible in the data. This check is based on a single run with one random seed; it verifies behaviour, not statistics.
+
+%--------------------------------------------------------------------------------------------------
+\section{Estimation experiments}\label{sec:r_estimation}
+%--------------------------------------------------------------------------------------------------
+
+\todo{Short introduction: which mission and settings all experiments share, and what is changed in each (Table~\ref{tab:m_experiments}).}
+
+\subsection{E1: Nominal flight}\label{sec:r_e1}
+\todo{Figure: measured vs expected voltage (does the model explain the sag?). Figure: SoC truth vs EKF vs charge counting, with the EKF $\pm 3\sigma$ band. Report SoC RMSE and final error for both estimators. Comment on how tight the band is.}
+
+\subsection{E2: Wrong initial SoC}\label{sec:r_e2}
+\todo{True SoC 70\%, filter assumes 100\%. Figure: SoC error with $\pm 3\sigma$ bounds. Report how long the EKF takes to converge (e.g.\ time until the error stays within 2\%), and the constant error of charge counting. Explain the convergence speed using the OCV slope and the gain.}
+
+\subsection{E3: Biased current sensor}\label{sec:r_e3}
+\todo{Bias $+0.8$\,A. Figure: bias estimate with $\pm 3\sigma$ band vs true bias. Figure or numbers: charge-counting drift vs EKF error. Comment on how quickly the bias is learned and why current changes help.}
+
+\subsection{E4: Aged battery}\label{sec:r_e4}
+\todo{True capacity 85\% of rated. Figure: capacity estimate with $\pm 3\sigma$ band vs truth. Report how far the estimate moves in one flight. Relate a slow convergence to the weak observability of $C_n$ (Section~\ref{sec:m_ekf_stages}).}
+
+\subsection{E5: Tuning Q and R}\label{sec:r_e5}
+\todo{$Q$ and $R$ scaled by 0.01, 1 and 100. Table and/or figure: SoC RMSE (and mean NIS) for each combination. Describe the slow/overconfident and jumpy regimes. State the final tuning values chosen and why. Revisit the remark in Section~\ref{sec:m_ekf_q} on the size of the derived $Q$ term.}
+
+\subsection{E6: Model mismatch and filter consistency}\label{sec:r_e6}
+\todo{Truth with 2 RC pairs and parameters off by up to $\pm 15\%$. Figure: innovations and NIS over time. Report mean NIS and mean NEES (and which states the NEES uses). Say whether the $\pm 3\sigma$ bands stay honest, and how much of the slow-RC gap of Section~\ref{sec:m_why_mismatch} ends up as SoC error.}
+
+\subsection{E7: Flat region of the OCV curve}\label{sec:r_e7}
+\todo{Figure: $\sigma_{\text{SoC}}$ against SoC over a flight. Show whether the uncertainty grows where the OCV slope is small (Figure~\ref{fig:r_ocv}) and how the risk rule reacts.}
+
+\subsection{E8: Comparison of filter stages}\label{sec:r_e8}
+\todo{Stages A, B and C (Table~\ref{tab:m_stages}) on the same biased, aged flight. Table: SoC RMSE and final error per stage. State what each added state buys.}
+
+%--------------------------------------------------------------------------------------------------
+\section{Return-to-home decisions on a single flight}\label{sec:r_single_rth}
+%--------------------------------------------------------------------------------------------------
+
+\todo{Long mission. Figure: $P_{\text{safe}}$ over time, with the turn-back moment of each policy marked. Figure: map showing where each policy turned back. Table: for each policy, turn-back time, distance flown, true SoC at landing, and whether the mission failed. Explain each policy's decision.}
+
+%--------------------------------------------------------------------------------------------------
+\section{Monte Carlo study}\label{sec:r_mc}
+%--------------------------------------------------------------------------------------------------
+
+\todo{500 missions with the random factors of Table~\ref{tab:m_mc_factors}, the same draws for every policy. Fill Table~\ref{tab:r_mc} and add a figure of failure rate and unused battery per policy. Compare the outcome with the hypothesis in Section~\ref{sec:m_experiments}, and explain any differences.}
+
+\begin{table}[htbp]
+  \centering
+  \caption[Monte Carlo results over 500 missions.]{Monte Carlo results over 500 missions. \textbf{TODO:} fill in from \texttt{main\_monte\_carlo.m}.}
+  \label{tab:r_mc}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Policy & Failure rate (\%) & Mean unused battery (\%) & Mean distance flown (km) \\
+    \midrule
+    A. Voltage threshold & -- & -- & -- \\
+    B. Charge counting & -- & -- & -- \\
+    C. EKF estimate only & -- & -- & -- \\
+    D. EKF risk-aware & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\todo{Also report the SoC RMSE of the EKF and of charge counting, and the mean NEES and NIS over all missions.}
+
+%--------------------------------------------------------------------------------------------------
+\section{Risk-threshold sweep}\label{sec:r_sweep}
+%--------------------------------------------------------------------------------------------------
+
+\todo{Policy D with $p^{\ast} =$ 80\%, 90\%, 95\%, 99\% and 99.9\%. Figure: failure rate against mean unused battery, one point per threshold. State what each extra ``nine'' of safety costs in unused battery.}

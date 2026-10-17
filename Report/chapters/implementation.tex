@@ -1,0 +1,232 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Chapter 4: Implementation   (the \chapter command is in main.tex)
+%
+% Code excerpts below are copied from the real files. The listing line numbers match the line
+% numbers in the source files (set with firstnumber=...). If a file changes, update the excerpt.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+This chapter shows how the method of Chapter~\ref{ch:method} is implemented in MATLAB. The simulator is complete and is described with excerpts from the code. The filter, the baseline and the decision rule are still being built; their sections are marked as such and will be completed as the code is finished. The full code is listed in Appendix~\ref{app:code}.
+
+%--------------------------------------------------------------------------------------------------
+\section{Tools and code structure}\label{sec:i_structure}
+%--------------------------------------------------------------------------------------------------
+
+The project uses base MATLAB only; no toolbox is required. (The Control System Toolbox's built-in \texttt{extendedKalmanFilter} may be used later as an optional cross-check.) Every script fixes the random-number seed with \texttt{rng}, so each run produces exactly the same random numbers and the results can be reproduced.
+
+The code is split into short files that each do one job, so that each can be understood and tested on its own. Table~\ref{tab:i_files} lists the files. All battery quantities in the code are per cell, as in Chapter~\ref{ch:method}.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Code files in \texttt{drone\_battery\_ekf/}.}
+  \label{tab:i_files}
+  \small
+  \begin{tabular}{@{}llp{0.42\textwidth}@{}}
+    \toprule
+    File & Status & Purpose \\
+    \midrule
+    \texttt{config/battery\_params.m} & Done & Filter, truth and sensor parameters \\
+    \texttt{config/ocv\_lookup.m} & Done & OCV and its slope at any SoC \\
+    \texttt{sim/battery\_true\_init.m} & Done & True battery at rest before take-off \\
+    \texttt{sim/battery\_true\_step.m} & Done & One step of the true 2-RC battery \\
+    \texttt{sim/read\_sensors.m} & Done & Biased, noisy current and noisy voltage \\
+    \texttt{sim/make\_mission.m} & Done & Routes, phase durations and currents \\
+    \texttt{sim/drone\_init.m} & Done & Drone at home, ready for take-off \\
+    \texttt{sim/drone\_step.m} & Done & Moves the drone one step; returns current demand \\
+    \texttt{main\_day2\_simulator.m} & Done & Simulator test flight and figures \\
+    \texttt{learning/day1\_ekf\_by\_hand.m} & Done & One-state EKF exercise (Section~\ref{sec:bg_example}) \\
+    \midrule
+    \texttt{estimators/ekf\_init.m} & Planned & Initial state, covariance and tuning \\
+    \texttt{estimators/ekf\_step.m} & Planned & One predict and update step \\
+    \texttt{estimators/coulomb\_count.m} & Planned & Charge-counting baseline \\
+    \texttt{decision/p\_safe\_return.m} & Planned & Margin to probability, \eqref{eq:m_margin}--\eqref{eq:m_psafe} \\
+    \texttt{decision/rth\_policies.m} & Planned & The four turn-back policies A--D \\
+    \texttt{main\_single\_flight.m} & Planned & One flight, experiments E1--E8 \\
+    \texttt{main\_monte\_carlo.m} & Planned & 500 flights $\times$ 4 policies \\
+    \texttt{plots/make\_figures.m} & Planned & Report figures \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The original plan had a single \texttt{simulate\_truth.m} for the true battery and its sensors. In the implementation this job is split into the battery files (\texttt{battery\_true\_init.m}, \texttt{battery\_true\_step.m}), the sensor file (\texttt{read\_sensors.m}) and the drone files (\texttt{drone\_init.m}, \texttt{drone\_step.m}). Keeping the drone separate from the battery lets a decision policy change the drone's mode without touching the battery code.
+
+%--------------------------------------------------------------------------------------------------
+\section{Parameters}\label{sec:i_params}
+%--------------------------------------------------------------------------------------------------
+
+All numbers live in one function, \texttt{battery\_params.m}, which returns a structure with three parts: \texttt{p.filt} (what the filter believes), \texttt{p.true} (the simulated battery) and \texttt{p.sens} (sensor imperfections). Listing~\ref{lst:i_params} shows the truth and sensor parts. The true values are written as multiples of the filter's values, so the size of each mismatch is visible in the code (Table~\ref{tab:m_params}).
+
+\begin{lstlisting}[caption={True battery and sensor parameters (\texttt{config/battery\_params.m}).},label={lst:i_params},firstnumber=22]
+% ---------- The "real" battery (truth) ----------
+p.true.Cn         = 5.0;               % change this to test an aged battery
+p.true.R0         = p.filt.R0 * 1.10;  % 10% higher than the filter thinks
+p.true.R1         = p.filt.R1 * 0.90;  % 10% lower
+p.true.C1         = p.filt.C1 * 1.10;  % 10% higher
+p.true.R2         = 0.004;             % second, slow RC pair the filter
+p.true.C2         = 100000;            %   does not know about (tau = 400 s)
+p.true.ocv_offset = -0.005;            % real OCV curve sits 5 mV lower
+p.true.V_cutoff   = 3.0;               % below this (per cell) = battery dead
+
+% ---------- Sensors ----------
+p.sens.bias = 0.5;             % current sensor reads 0.5 A too high (A)
+p.sens.sigI = 0.2;             % current sensor noise (A, 1 sigma)
+p.sens.sigV = 0.01;            % voltage sensor noise per cell (V, 1 sigma)
+\end{lstlisting}
+
+%--------------------------------------------------------------------------------------------------
+\section{OCV lookup}\label{sec:i_ocv}
+%--------------------------------------------------------------------------------------------------
+
+\texttt{ocv\_lookup.m} (Listing~\ref{lst:i_ocv}) returns the OCV and, when asked for a second output, its slope. It implements the table of Table~\ref{tab:m_ocv} with \texttt{pchip} interpolation and the finite-difference slope \eqref{eq:m_ocv_slope}. The SoC is clamped to $[0, 1]$ first, so the function never extrapolates beyond the table. An optional \texttt{offset} argument shifts the curve; the simulator uses it to give the true battery its $-5$\,mV offset, while the filter uses the nominal curve. The same function is called with vectors to draw the OCV figure.
+
+\begin{lstlisting}[caption={OCV value and slope (\texttt{config/ocv\_lookup.m}).},label={lst:i_ocv},firstnumber=17]
+soc_tab = [0 5 10 20 30 40 50 60 70 80 90 100] / 100;
+ocv_tab = [3.30 3.45 3.55 3.63 3.68 3.73 3.78 3.85 3.93 4.00 4.08 4.18];
+
+s   = min(max(soc, 0), 1);                         % stay inside the table
+ocv = interp1(soc_tab, ocv_tab, s, 'pchip') + offset;
+
+if nargout > 1                                      % slope by finite difference
+    h  = 0.005;
+    hi = min(s + h, 1);
+    lo = max(s - h, 0);
+    slope = (interp1(soc_tab, ocv_tab, hi, 'pchip') - ...
+             interp1(soc_tab, ocv_tab, lo, 'pchip')) ./ (hi - lo);
+end
+\end{lstlisting}
+
+%--------------------------------------------------------------------------------------------------
+\section{The true battery}\label{sec:i_battery}
+%--------------------------------------------------------------------------------------------------
+
+\texttt{battery\_true\_step.m} (Listing~\ref{lst:i_battery}) advances the true battery by one step. Its lines map one-to-one onto the equations of Section~\ref{sec:m_truth}: lines 11--12 compute the decay factors $a_1$ and $a_2$ of \eqref{eq:m_rc_discrete}; line 14 is the SoC update \eqref{eq:m_true_soc}; lines 15--16 are the two RC updates \eqref{eq:m_true_v1}--\eqref{eq:m_true_v2}; and line 18 is the terminal voltage \eqref{eq:m_true_v}, computed at the end of the step with the updated states. The state starts from \texttt{battery\_true\_init.m}, which sets the chosen initial SoC and $V_1 = V_2 = 0$.
+
+\begin{lstlisting}[caption={One step of the true 2-RC battery (\texttt{sim/battery\_true\_step.m}).},label={lst:i_battery},firstnumber=11]
+a1 = exp(-dt / (pt.R1 * pt.C1));
+a2 = exp(-dt / (pt.R2 * pt.C2));
+
+b.soc = b.soc - I * dt / (3600 * pt.Cn);
+b.V1  = a1 * b.V1 + pt.R1 * (1 - a1) * I;
+b.V2  = a2 * b.V2 + pt.R2 * (1 - a2) * I;
+
+V = ocv_lookup(b.soc, pt.ocv_offset) - pt.R0 * I - b.V1 - b.V2;
+\end{lstlisting}
+
+%--------------------------------------------------------------------------------------------------
+\section{Sensors}\label{sec:i_sensors}
+%--------------------------------------------------------------------------------------------------
+
+\texttt{read\_sensors.m} (Listing~\ref{lst:i_sensors}) implements the sensor model \eqref{eq:m_sensor_i}--\eqref{eq:m_sensor_v}. MATLAB's \texttt{randn} draws a new standard normal sample at each call, so the noise is independent from step to step, while the bias stays constant.
+
+\begin{lstlisting}[caption={Sensor model (\texttt{sim/read\_sensors.m}).},label={lst:i_sensors},firstnumber=9]
+Im = I + ps.bias + ps.sigI * randn;
+Vm = V + ps.sigV * randn;
+\end{lstlisting}
+
+%--------------------------------------------------------------------------------------------------
+\section{Drone and mission}\label{sec:i_drone}
+%--------------------------------------------------------------------------------------------------
+
+\texttt{make\_mission.m} returns the route and the phase durations and currents of Table~\ref{tab:m_phases}. \texttt{drone\_step.m} is a small state machine: the field \texttt{d.mode} holds the current phase, and each call returns the current that phase demands and moves to the next phase when the current one is finished. Listing~\ref{lst:i_drone} shows the first three phases. A decision policy will make the drone turn back simply by setting \texttt{d.mode = 'return'}; the \texttt{return} case then flies it home and lands it.
+
+\begin{lstlisting}[caption={Flight-phase state machine, first three phases (\texttt{sim/drone\_step.m}).},label={lst:i_drone},firstnumber=11]
+switch d.mode
+    case 'takeoff'
+        I = m.I_takeoff;
+        if d.t_in_mode >= m.T_takeoff
+            d = set_mode(d, 'cruise');
+        end
+
+    case 'cruise'
+        I = m.I_cruise * (1 + m.wind);
+        [d, arrived] = fly_towards(d, m.wp(d.wp_index, :), m.v_cruise, dt);
+        if arrived
+            d = set_mode(d, 'hover');
+        end
+
+    case 'hover'
+        I = m.I_hover;
+        if d.t_in_mode >= m.T_hover
+            d.wp_index = d.wp_index + 1;
+            if d.wp_index > size(m.wp, 1)
+                d = set_mode(d, 'return');      % all deliveries done
+            else
+                d = set_mode(d, 'cruise');
+            end
+        end
+\end{lstlisting}
+
+Movement is handled by the local function \texttt{fly\_towards} (Listing~\ref{lst:i_fly}). Each step the drone moves $v_{\text{cruise}}\Delta t = 10$\,m in a straight line towards its target. If the target is closer than one step, the drone is placed on it, so it never overshoots. The distance actually flown is accumulated in \texttt{d.dist\_flown}, which will be used as the ``work done'' score.
+
+\begin{lstlisting}[caption={Straight-line movement towards a target (\texttt{sim/drone\_step.m}).},label={lst:i_fly},firstnumber=63]
+function [d, arrived] = fly_towards(d, target, v, dt)
+gap  = target - d.pos;
+dist = norm(gap);
+step = v * dt;
+if dist <= step                     % close enough: land on the target
+    d.pos = target;
+    d.dist_flown = d.dist_flown + dist;
+    arrived = true;
+else
+    d.pos = d.pos + step * gap / dist;
+    d.dist_flown = d.dist_flown + step;
+    arrived = false;
+end
+\end{lstlisting}
+
+%--------------------------------------------------------------------------------------------------
+\section{The simulation loop}\label{sec:i_loop}
+%--------------------------------------------------------------------------------------------------
+
+\texttt{main\_day2\_simulator.m} flies one mission with no filter, to test the simulator. Listing~\ref{lst:i_loop} shows its main loop. Each second it (1) asks the drone for its current demand, (2) adds the slow random load of \eqref{eq:m_wobble}, (3) steps the true battery, (4) reads the sensors and (5) stops if the battery voltage falls below the cut-off while current flows, or when the drone has landed. The script then prints a summary and saves the figures used in Section~\ref{sec:r_sim}. The planned \texttt{main\_single\_flight.m} will extend this loop with the estimators and the decision rule, which run on the sensor readings \texttt{Im} and \texttt{Vm} only.
+
+\begin{lstlisting}[caption={Main loop of the simulator test (\texttt{main\_day2\_simulator.m}).},label={lst:i_loop},firstnumber=27]
+wobble = 0;                              % small random load changes (gusts, manoeuvres)
+dead = false;
+for k = 1:N
+    [drone, I_demand] = drone_step(drone, m, dt);
+    if I_demand > 0
+        wobble = 0.9*wobble + 0.3*randn;     % slowly varying, about +/-0.7 A
+        I = max(I_demand + wobble, 0);
+    else
+        I = 0;
+    end
+
+    [batt, V] = battery_true_step(batt, I, p.true, dt);
+    [Im, Vm]  = read_sensors(I, V, p.sens);
+
+    rec.t(k) = k*dt;   rec.I(k) = I;   rec.Im(k) = Im;
+    rec.V(k) = V;      rec.Vm(k) = Vm; rec.ocv(k) = ocv_lookup(batt.soc, p.true.ocv_offset);
+    rec.soc(k) = batt.soc;  rec.pos(k,:) = drone.pos;  rec.mode(k) = drone.mode;
+
+    if I > 0 && V < p.true.V_cutoff
+        dead = true;  break;                 % battery died in the air
+    end
+    if strcmp(drone.mode, 'landed'), break; end
+end
+\end{lstlisting}
+
+The charge-counting check reported in Section~\ref{sec:r_sim} is computed after the flight from the logged measured current, as $\mathrm{SoC}_0 - \sum_k I_{m,k}\Delta t / (3600 C_n)$, which is \eqref{eq:bg_cc} applied to the biased, noisy sensor reading.
+
+%--------------------------------------------------------------------------------------------------
+\section{EKF implementation}\label{sec:i_ekf}
+%--------------------------------------------------------------------------------------------------
+
+\todo{Day 3--4. Describe \texttt{ekf\_init.m} (initial state and $P_0$ of \eqref{eq:m_P0}, tuning of Table~\ref{tab:m_tuning}) and \texttt{ekf\_step.m}. Show the predict block (state prediction, $F$ from \eqref{eq:m_F}, $G$ and $Q$ from \eqref{eq:m_G}--\eqref{eq:m_Q}) and the update block ($H$ from \eqref{eq:m_H}, scalar $S$, gain, symmetrisation, SoC clamp) as listings, with a sentence mapping each line to its equation. Note that the voltage noise is called \texttt{Rv} in the code so that it is never confused with the resistors. Describe how Stages A, B and C are selected.}
+
+%--------------------------------------------------------------------------------------------------
+\section{Charge-counting baseline}\label{sec:i_cc}
+%--------------------------------------------------------------------------------------------------
+
+\todo{Day 3. Describe \texttt{coulomb\_count.m}: Equation~\eqref{eq:bg_cc} with the measured current, the nominal capacity and the assumed starting SoC.}
+
+%--------------------------------------------------------------------------------------------------
+\section{Decision rule and policies}\label{sec:i_decision}
+%--------------------------------------------------------------------------------------------------
+
+\todo{Day 5. Describe \texttt{p\_safe\_return.m} (Equations~\eqref{eq:m_thome}--\eqref{eq:m_psafe}, with $\Phi$ computed from \texttt{erfc}) and \texttt{rth\_policies.m} (policies A--D of Table~\ref{tab:m_policies}). State the final values of $t_{\text{land}}$, $\sigma_{\text{trip}}$ and $p^{\ast}$. Explain how a policy's decision sets \texttt{d.mode = 'return'} and how the true battery then flies the drone home.}
+
+%--------------------------------------------------------------------------------------------------
+\section{Experiment and Monte Carlo drivers}\label{sec:i_drivers}
+%--------------------------------------------------------------------------------------------------
+
+\todo{Day 4--5. Describe \texttt{main\_single\_flight.m} (how each experiment E1--E8 is configured) and \texttt{main\_monte\_carlo.m} (how the random factors of Table~\ref{tab:m_mc_factors} are drawn, and how all four policies are given the same random draws). Give the run time if it is notable.}

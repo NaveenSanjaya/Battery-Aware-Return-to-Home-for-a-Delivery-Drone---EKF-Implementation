@@ -1,17 +1,140 @@
-@book{example_book,
-    author = {Author Name},
-    title = {Book Title},
-    year = {Year},
-    publisher = {Publisher},
+% References for the report. Sources are those listed in docs/project_guide.md, section 13.
+% Only fields that are known with confidence are filled in. Every "note = {TODO: ...}" field is
+% printed in the bibliography on purpose, so it cannot be forgotten: check the source, fix the
+% entry, then delete the note before submitting.
+
+%--------------------------------------------------------------------------------------------------
+% Filter and battery theory
+%--------------------------------------------------------------------------------------------------
+
+@article{plett2004part1,
+  author  = {Plett, Gregory L.},
+  title   = {Extended {K}alman filtering for battery management systems of {LiPB}-based {HEV} battery packs: {P}art 1. {B}ackground},
+  journal = {Journal of Power Sources},
+  volume  = {134},
+  number  = {2},
+  pages   = {252--261},
+  year    = {2004},
+  doi     = {10.1016/j.jpowsour.2004.02.031},
+  url     = {https://doi.org/10.1016/j.jpowsour.2004.02.031}
 }
 
-@article{dissanayake2001solution,
-  title={A solution to the simultaneous localization and map building (SLAM) problem},
-  author={Dissanayake, MWM Gamini and Newman, Paul and Clark, Steve and Durrant-Whyte, Hugh F and Csorba, Michael},
-  journal={IEEE Transactions on robotics and automation},
-  volume={17},
-  number={3},
-  pages={229--241},
-  year={2001},
-  publisher={IEEE}
+@article{plett2004part2,
+  author  = {Plett, Gregory L.},
+  title   = {Extended {K}alman filtering for battery management systems of {LiPB}-based {HEV} battery packs: {P}art 2. {M}odeling and identification},
+  journal = {Journal of Power Sources},
+  volume  = {134},
+  number  = {2},
+  pages   = {262--276},
+  year    = {2004},
+  note    = {TODO: verify pages and add DOI}
+}
+
+@article{plett2004part3,
+  author  = {Plett, Gregory L.},
+  title   = {Extended {K}alman filtering for battery management systems of {LiPB}-based {HEV} battery packs: {P}art 3. {S}tate and parameter estimation},
+  journal = {Journal of Power Sources},
+  volume  = {134},
+  number  = {2},
+  pages   = {277--292},
+  year    = {2004},
+  note    = {TODO: verify volume, pages and add DOI}
+}
+
+@book{plett2015bms,
+  author    = {Plett, Gregory L.},
+  title     = {Battery Management Systems, Volume {II}: Equivalent-Circuit Methods},
+  publisher = {Artech House},
+  year      = {2015},
+  note      = {TODO: verify year and edition}
+}
+
+@book{simon2006optimal,
+  author    = {Simon, Dan},
+  title     = {Optimal State Estimation: {K}alman, {$H_{\infty}$}, and Nonlinear Approaches},
+  publisher = {Wiley},
+  year      = {2006}
+}
+
+@techreport{welch2006intro,
+  author      = {Welch, Greg and Bishop, Gary},
+  title       = {An Introduction to the {K}alman Filter},
+  institution = {Department of Computer Science, University of North Carolina at Chapel Hill},
+  number      = {TR 95-041},
+  year        = {2006},
+  note        = {TODO: verify year of the version used}
+}
+
+@misc{mathworks_ekf_battery,
+  title        = {Extended {K}alman Filter with Battery Estimation Example},
+  howpublished = {MATLAB Central File Exchange, file 105855},
+  url          = {https://www.mathworks.com/matlabcentral/fileexchange/105855-extended-kalman-filter-with-battery-estimation-example},
+  note         = {TODO: add author, year and access date}
+}
+
+%--------------------------------------------------------------------------------------------------
+% Drone battery estimation (related work)
+%--------------------------------------------------------------------------------------------------
+
+@misc{hal_uav_ekf,
+  title        = {{SoC} estimation using an extended {K}alman filter for {UAV} applications},
+  howpublished = {HAL open archive, hal-01537730},
+  url          = {https://hal.archives-ouvertes.fr/hal-01537730},
+  note         = {TODO: add authors, year and venue}
+}
+
+@article{ijphm_flight_time,
+  title   = {Verification of prognostic algorithms to predict remaining flying time for electric unmanned vehicles},
+  journal = {International Journal of Prognostics and Health Management},
+  url     = {https://papers.phmsociety.org/index.php/ijphm/article/view/2700},
+  note    = {TODO: add authors (possibly E. F. Hogge et al.), year, volume and pages}
+}
+
+@misc{nasa_flight_time,
+  title        = {{NASA} Technical Reports Server document 20190025952},
+  howpublished = {NASA Technical Reports Server},
+  url          = {https://ntrs.nasa.gov/api/citations/20190025952/downloads/20190025952.pdf},
+  note         = {TODO: replace with the report's real title, authors, report number and year}
+}
+
+@article{purdue_jate_comparison,
+  title   = {[{TODO}: exact title] {EKF}, {UKF} and {C}oulomb counting compared on delivery and inspection missions},
+  journal = {Journal of Aviation Technology and Engineering},
+  volume  = {12},
+  number  = {2},
+  url     = {https://docs.lib.purdue.edu/jate/vol12/iss2/4},
+  note    = {TODO: add exact title, authors, year and pages}
+}
+
+%--------------------------------------------------------------------------------------------------
+% Datasets (optional real-data checks)
+%--------------------------------------------------------------------------------------------------
+
+@article{cmu_dji_dataset,
+  title   = {In-flight positional and energy use data set of a {DJI} {M}atrice 100 quadcopter for small package delivery},
+  journal = {Scientific Data},
+  year    = {2021},
+  url     = {https://arxiv.org/pdf/2103.13313},
+  note    = {TODO: add authors (possibly T. A. Rodrigues et al.), volume and article number}
+}
+
+@misc{cmu_evtol_dataset,
+  title        = {{eVTOL} Battery Dataset},
+  howpublished = {Carnegie Mellon University, KiltHub repository},
+  url          = {https://kilthub.cmu.edu/articles/dataset/eVTOL_Battery_Dataset/14226830},
+  note         = {TODO: add authors and year}
+}
+
+@article{cmu_evtol_paper,
+  title   = {A battery dataset for electric vertical takeoff and landing aircraft},
+  journal = {Scientific Data},
+  url     = {https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10238407/},
+  note    = {TODO: verify journal; add authors (possibly A. Bills et al.), year, volume and article number}
+}
+
+@misc{mcmaster_lg_hg2,
+  title        = {{LG} {18650HG2} Li-ion Battery Data},
+  howpublished = {Mendeley Data, McMaster University, version 2},
+  url          = {https://data.mendeley.com/datasets/b5mj79w5w9/2},
+  note         = {TODO: add authors (possibly P. Kollmeyer et al.) and year}
 }

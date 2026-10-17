@@ -4,24 +4,74 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \documentclass[12pt,a4paper]{report}
 \usepackage[margin=1in]{geometry}
-\usepackage{amsmath}
+\usepackage{amsmath,amsfonts,amssymb}
 \usepackage{graphicx}
 \usepackage[table]{xcolor}
 \usepackage{pdflscape}
 \usepackage[figure,table]{totalcount}
-\usepackage[hidelinks,hypertexnames=false]{hyperref}
 \usepackage{lipsum}
-\usepackage{amsmath,amsfonts}
 \usepackage{caption}
 \usepackage{subcaption}
 \usepackage{float}
+\usepackage{booktabs}
 \usepackage{listings}
 \usepackage{url}
 \usepackage{cite}
-\newcommand{\projtitle}{Report}
-\newcommand{\module}{EN3330} % Or EN4203 or BM4201 
+\usepackage[hidelinks,hypertexnames=false]{hyperref} % keep hyperref last
+
+\newcommand{\projtitle}{Battery-Aware Return-to-Home for a Delivery Drone Using an Extended Kalman Filter}
+\newcommand{\module}{EN3330} % Or EN4203 or BM4201   % TODO: check module name/code
 \newcommand{\studentname}{Basnayake B.M.N.S}
 \newcommand{\indexnumber}{220072R}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Layout
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.75em}
+\graphicspath{{figures/}}
+\renewcommand{\bibname}{References}
+
+% Visible marker for work that is still to come. Search for "TODO" before submitting.
+\newcommand{\todo}[1]{\textbf{TODO:} #1}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MATLAB code listings
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\lstdefinestyle{matlabstyle}{
+  language=Matlab,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{blue!70!black}\bfseries,
+  commentstyle=\color{green!40!black}\itshape,
+  stringstyle=\color{red!60!black},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=8pt,
+  frame=single,
+  rulecolor=\color{gray!60},
+  backgroundcolor=\color{gray!5},
+  xleftmargin=2em,
+  framexleftmargin=0.5em,
+  breaklines=true,
+  showstringspaces=false,
+  columns=fullflexible,
+  keepspaces=true,
+  tabsize=4,
+  captionpos=b
+}
+\lstset{style=matlabstyle}
+
+% Folder that holds the MATLAB project, relative to this main.tex.
+% Change it here if the Report folder is compiled somewhere else (e.g. Overleaf).
+\newcommand{\codedir}{../drone_battery_ekf}
+
+% \codefile{<path inside \codedir>}{<caption>}
+% Prints the whole file, or a visible TODO if the file cannot be found.
+\newcommand{\codefile}[2]{%
+  \IfFileExists{\codedir/#1}%
+    {\lstinputlisting[caption={#2}]{\codedir/#1}}%
+    {\par\noindent\textbf{TODO:} code file \texttt{\detokenize{#1}} not found. Check \texttt{\textbackslash codedir} in \texttt{main.tex}.\par}%
+}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{document}
@@ -47,7 +97,7 @@
     {\large Index No.: \indexnumber\par}
 
     \vfill
-    {\large\bfseries EN3330-Introduction to Engineering Optimization\par}
+    {\large\bfseries EN3330-Introduction to Engineering Optimization\par} % TODO: check module name/code
     \vspace{0.15in}
     {\normalsize Submitted in partial fulfillment of the requirements for course module \module\par}
     \vspace{0.4in}
@@ -55,12 +105,54 @@
 \end{titlepage}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Chapters
+% Front matter
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\noindent{\Huge\bfseries Introduction}\par
-\vspace{20pt}
+\pagenumbering{roman}
+\tableofcontents
+\listoffigures
+\listoftables
+\clearpage
+\pagenumbering{arabic}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Chapters (one file per chapter in chapters/)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\chapter{Introduction}\label{ch:intro}
 \input{chapters/introduction}
 
+\chapter{Background}\label{ch:background}
+\input{chapters/background}
+
+\chapter{Methodology}\label{ch:method}
+\input{chapters/methodology}
+
+\chapter{Implementation}\label{ch:impl}
+\input{chapters/implementation}
+
+\chapter{Results}\label{ch:results}
+\input{chapters/results}
+
+\chapter{Discussion}\label{ch:discussion}
+\input{chapters/discussion}
+
+\chapter{Conclusion}\label{ch:conclusion}
+\input{chapters/conclusion}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% References
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\clearpage
+\phantomsection
+\addcontentsline{toc}{chapter}{References}
+\bibliographystyle{IEEEtran}
+\bibliography{chapters/references}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Appendix
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\appendix
+\chapter{MATLAB Code}\label{app:code}
+\input{chapters/appendix_code}
 
 \end{document}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

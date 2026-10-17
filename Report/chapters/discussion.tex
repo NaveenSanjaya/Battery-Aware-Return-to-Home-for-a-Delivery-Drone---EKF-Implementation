@@ -1,0 +1,39 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Chapter 6: Discussion   (the \chapter command is in main.tex)
+% SKELETON: to be written after the Day 3-5 results exist. Explain WHY results happen.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\todo{One paragraph: the main findings of Chapter~\ref{ch:results} in two or three sentences, and what this chapter will explain.}
+
+\section{Why the EKF works for this problem}\label{sec:d_why_ekf}
+\todo{Link the results of E1--E3 to the theory: the voltage keeps correcting the SoC through the gain; the OCV curve is smooth enough for the tangent approximation; the noise is close to Gaussian. Refer to the gain behaviour of Table~\ref{tab:bg_gain}.}
+
+\section{Gain, OCV slope and uncertainty}\label{sec:d_gain_slope}
+\todo{Use E2 and E7: how the OCV slope (Figure~\ref{fig:r_ocv}) sets the gain, the convergence speed and $\sigma_{\text{SoC}}$. Why the filter is less certain in the flat middle, and what that does to the RTH decision.}
+
+\section{Observability of bias and capacity}\label{sec:d_observability}
+\todo{Use E3, E4 and E8: why the bias is learned faster than the capacity; the role of current changes (take-off vs cruise) in separating them (Section~\ref{sec:m_ekf_stages}); what each extra state buys.}
+
+\section{Effect of model mismatch}\label{sec:d_mismatch}
+\todo{Use E6 and the Day~2 observation of the slowly widening voltage gap (Section~\ref{sec:r_sim}): where the unmodelled slow RC pair shows up in the estimates; whether NEES and NIS say the bands remain honest; possible fixes (a second RC state in the filter, a larger $q_{V_1}$, or adaptive noise).}
+
+\section{Value of uncertainty in the return-to-home decision}\label{sec:d_value_uncertainty}
+\todo{Use the single-flight and Monte Carlo results: compare policies C and D, which share the same estimate and differ only in using $\sigma_{\text{SoC}}$; explain each policy's failures and wasted battery; discuss the threshold-sweep trade-off and how an operator would choose $p^{\ast}$.}
+
+\section{Limitations}\label{sec:d_limitations}
+\todo{Discuss each limitation openly, and link it to the results where possible:}
+\begin{itemize}
+  \item Temperature is not modelled; a cold battery has higher resistance and less usable capacity.
+  \item Voltage hysteresis between charge and discharge is ignored.
+  \item Capacity is only weakly observable within one flight.
+  \item The probability rule assumes Gaussian errors; heavy-tailed events (a gust, a motor fault) are not covered.
+  \item The rule assumes a straight flight home at a constant cruise current, an exact GPS position, and treats the capacity estimate as exact (Section~\ref{sec:m_rth_prob}).
+  \item The current-sensor noise that enters the measurement equation is neglected (Section~\ref{sec:m_ekf_h}).
+  \item All results come from simulation; real flight logs have no true SoC to compare against.
+\end{itemize}
+
+\section{When a UKF or particle filter would be better}\label{sec:d_alternatives}
+\todo{From Section~\ref{sec:bg_ekf}: the EKF relies on one tangent line, so it struggles with sharp bends (e.g.\ near empty, or flat-plateau chemistries such as LFP) and with very large initial uncertainty. Say whether any result (e.g.\ E2 with a 30\% start error) showed signs of this, and when a UKF or PF would justify its extra cost~\cite{simon2006optimal}.}
+
+\section{Future work}\label{sec:d_future}
+\todo{E.g.\ test on real flight data~\cite{cmu_dji_dataset,cmu_evtol_paper}; add temperature; add the capacity uncertainty to $\sigma_{\text{total}}$; compare with a UKF.}
