@@ -15,7 +15,7 @@ Before any filter is added, the simulator must produce believable data: the volt
 
 \subsection{Set-up}
 
-The drone flew the \emph{short} mission (three drop-offs, Section~\ref{sec:m_mission}) with no wind. The true battery started at rest at 95\% SoC and used the true parameters of Table~\ref{tab:m_params}. The current sensor had a bias of $+0.5$\,A and noise of 0.2\,A; the voltage sensor had noise of 10\,mV. The random seed was fixed (\texttt{rng(2)}). No estimator was running; charge counting was applied to the logged measured current after the flight. Table~\ref{tab:r_day2} summarises the flight.
+The drone flew the \emph{short} mission (three drop-offs, Section~\ref{sec:m_mission}) with no wind. The true battery started at rest at 95\% SoC and used the true parameters of Table~\ref{tab:m_params}, except that the slow RC pair was at its first setting, $R_2 = 4$\,m$\Omega$ and $C_2 = 100\,000$\,F. This setting was later kept only for the E6 stress test (Section~\ref{sec:m_why_mismatch}). The current sensor had a bias of $+0.5$\,A and noise of 0.2\,A; the voltage sensor had noise of 10\,mV. The random seed was fixed (\texttt{rng(2)}). No estimator was running; charge counting was applied to the logged measured current after the flight. Table~\ref{tab:r_day2} summarises the flight.
 
 \begin{table}[htbp]
   \centering
@@ -68,7 +68,7 @@ Figure~\ref{fig:r_voltage} shows the voltages and the true SoC. The true SoC fal
 
 \textbf{Steps at phase changes.} When take-off ends and the current falls from 30\,A to 15\,A, the voltage steps \emph{up}; at each drop-off, when the current rises to 20\,A for hovering, it steps \emph{down}. The instant part of each step is $R_0 \Delta I$, about 132\,mV when take-off ends and 44\,mV at the start of each hover, and the rounded part that follows is the RC voltage settling. This is the behaviour the circuit model of Figure~\ref{fig:bg_circuit} predicts.
 
-\textbf{Slowly widening gap.} Over the flight, the gap between the OCV and the terminal voltage slowly widens, even in cruise at a nearly constant current. This is the slow RC pair ($\tau_2 = 400$\,s), which exists only in the true battery and keeps charging up for most of the flight. It is the deliberate model mismatch of Section~\ref{sec:m_why_mismatch}: the EKF, with its single 30\,s RC pair, cannot represent this slow drift and will have to absorb it in its other states. Experiment E6 will show how much this costs.
+\textbf{Slowly widening gap.} Over the flight, the gap between the OCV and the terminal voltage slowly widens, even in cruise at a nearly constant current. This is the slow RC pair ($\tau_2 = 400$\,s), which exists only in the true battery and keeps charging up for most of the flight. It is the deliberate model mismatch of Section~\ref{sec:m_why_mismatch}: the EKF, with its single 30\,s RC pair, cannot represent this slow drift and has to absorb it in its other states. This observation, together with a rough estimate of the settled extra drop, led to a milder default slow pair for the main experiments, with the original setting kept as the E6 stress test.
 
 \textbf{Safety.} The lowest cell voltage, 3.297\,V near the end of the flight, stays about 0.3\,V above the 3.0\,V cut-off, and the drone landed with 18.5\% SoC. The short mission is therefore safe, as intended, and leaves the long mission to test the RTH rule.
 
@@ -97,28 +97,28 @@ The simulator behaves as intended. The voltage sags realistically under load, it
 \todo{Short introduction: which mission and settings all experiments share, and what is changed in each (Table~\ref{tab:m_experiments}).}
 
 \subsection{E1: Nominal flight}\label{sec:r_e1}
-\todo{Figure: measured vs expected voltage (does the model explain the sag?). Figure: SoC truth vs EKF vs charge counting, with the EKF $\pm 3\sigma$ band. Report SoC RMSE and final error for both estimators. Comment on how tight the band is.}
+\todo{Day 3 (\texttt{main\_day3\_ekf.m}). True SoC 95\%, start read from the resting voltage, $\sigma_{\text{SoC},0} = 3\%$. Figure: measured vs expected voltage and innovations within $\pm 3\sqrt{S}$ (\texttt{fig\_e1\_voltage\_innovation.png}). Figure: SoC truth vs charge counting vs stages A and B, with the stage-B $\pm 3\sigma$ band (\texttt{fig\_soc\_tracking.png}, \texttt{fig\_soc\_error.png}). Figure: stage-B $R_0$ estimate vs the true 8.8\,m$\Omega$ (\texttt{fig\_r0\_estimate.png}). Table: RMSE, final error, max error, \% inside $\pm 3\sigma$ and mean NIS for each estimator. Compare with the design-stage checks of Section~\ref{sec:m_ekf_investigation}.}
 
 \subsection{E2: Wrong initial SoC}\label{sec:r_e2}
-\todo{True SoC 70\%, filter assumes 100\%. Figure: SoC error with $\pm 3\sigma$ bounds. Report how long the EKF takes to converge (e.g.\ time until the error stays within 2\%), and the constant error of charge counting. Explain the convergence speed using the OCV slope and the gain.}
+\todo{Day 3. True SoC 85\%, both estimators assume 100\%, $\sigma_{\text{SoC},0} = 20\%$. Figures: SoC and SoC error with $\pm 3\sigma$ bounds (same files as E1). Report the convergence time (last time the error was 2\% or more, as printed by the script) for stages A and B, and the error of charge counting. Explain the convergence speed using the OCV slope and the gain.}
 
-\subsection{E3: Biased current sensor}\label{sec:r_e3}
-\todo{Bias $+0.8$\,A. Figure: bias estimate with $\pm 3\sigma$ band vs true bias. Figure or numbers: charge-counting drift vs EKF error. Comment on how quickly the bias is learned and why current changes help.}
+\subsection{E3: Bias observability (stage C)}\label{sec:r_e3}
+\todo{Bias $+0.8$\,A, stage C. Figure: bias and $R_0$ estimates with $\pm 3\sigma$ bands vs truth. Show whether the bias is learned in one flight or confused with $R_0$, as predicted by \eqref{eq:m_confound}; compare the SoC error with stage B and charge counting.}
 
-\subsection{E4: Aged battery}\label{sec:r_e4}
-\todo{True capacity 85\% of rated. Figure: capacity estimate with $\pm 3\sigma$ band vs truth. Report how far the estimate moves in one flight. Relate a slow convergence to the weak observability of $C_n$ (Section~\ref{sec:m_ekf_stages}).}
+\subsection{E4: Capacity observability (stage C)}\label{sec:r_e4}
+\todo{True capacity 85\% of rated, stage C. Figure: capacity estimate with $\pm 3\sigma$ band vs truth. Report how far the estimate moves in one flight, and how stage B (which assumes 5\,Ah) and charge counting cope. Relate the result to the weak observability of $C_n$ (Section~\ref{sec:m_ekf_investigation}).}
 
 \subsection{E5: Tuning Q and R}\label{sec:r_e5}
 \todo{$Q$ and $R$ scaled by 0.01, 1 and 100. Table and/or figure: SoC RMSE (and mean NIS) for each combination. Describe the slow/overconfident and jumpy regimes. State the final tuning values chosen and why. Revisit the remark in Section~\ref{sec:m_ekf_q} on the size of the derived $Q$ term.}
 
-\subsection{E6: Model mismatch and filter consistency}\label{sec:r_e6}
-\todo{Truth with 2 RC pairs and parameters off by up to $\pm 15\%$. Figure: innovations and NIS over time. Report mean NIS and mean NEES (and which states the NEES uses). Say whether the $\pm 3\sigma$ bands stay honest, and how much of the slow-RC gap of Section~\ref{sec:m_why_mismatch} ends up as SoC error.}
+\subsection{E6: Model-mismatch stress test and filter consistency}\label{sec:r_e6}
+\todo{Slow pair $R_2 = 4$\,m$\Omega$ and parameters off by up to $\pm 15\%$, stage B. Figure: innovations and NIS over time. Report mean NIS and mean NEES (and which states the NEES uses). Say whether the $\pm 3\sigma$ bands stay honest, and how much of the slow-RC gap of Section~\ref{sec:m_why_mismatch} ends up as SoC error.}
 
 \subsection{E7: Flat region of the OCV curve}\label{sec:r_e7}
 \todo{Figure: $\sigma_{\text{SoC}}$ against SoC over a flight. Show whether the uncertainty grows where the OCV slope is small (Figure~\ref{fig:r_ocv}) and how the risk rule reacts.}
 
 \subsection{E8: Comparison of filter stages}\label{sec:r_e8}
-\todo{Stages A, B and C (Table~\ref{tab:m_stages}) on the same biased, aged flight. Table: SoC RMSE and final error per stage. State what each added state buys.}
+\todo{Stages A, B and C (Table~\ref{tab:m_stages}) on the same biased, aged flight. Table: SoC RMSE, final error and \% inside $\pm 3\sigma$ per stage, plus the final $b$, $C_n$ and $R_0$ estimates. State what learning $R_0$ buys and whether adding $b$ and $C_n$ helps or hurts within one flight.}
 
 %--------------------------------------------------------------------------------------------------
 \section{Return-to-home decisions on a single flight}\label{sec:r_single_rth}

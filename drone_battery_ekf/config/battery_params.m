@@ -18,14 +18,20 @@ p.filt.R0         = 0.008;     % ohmic resistance (ohm)
 p.filt.R1         = 0.006;     % polarisation resistance (ohm)
 p.filt.C1         = 5000;      % polarisation capacitance (F) -> tau = 30 s
 p.filt.ocv_offset = 0;         % shift of the OCV curve (V)
+p.filt.sig_model  = 0.010;     % allowance for model error in the voltage (V).
+                               %   The filter's model is never exact; this
+                               %   tells it not to trust its voltage
+                               %   prediction to better than about 10 mV.
 
 % ---------- The "real" battery (truth) ----------
 p.true.Cn         = 5.0;               % change this to test an aged battery
 p.true.R0         = p.filt.R0 * 1.10;  % 10% higher than the filter thinks
 p.true.R1         = p.filt.R1 * 0.90;  % 10% lower
 p.true.C1         = p.filt.C1 * 1.10;  % 10% higher
-p.true.R2         = 0.004;             % second, slow RC pair the filter
-p.true.C2         = 100000;            %   does not know about (tau = 400 s)
+p.true.R2         = 0.0015;            % second, slow RC pair the filter does not
+p.true.C2         = 266667;            %   know about (tau = R2*C2 = 400 s).
+                                       %   Mild on purpose; experiment E6 uses
+                                       %   R2 = 0.004 as a stress test.
 p.true.ocv_offset = -0.005;            % real OCV curve sits 5 mV lower
 p.true.V_cutoff   = 3.0;               % below this (per cell) = battery dead
 

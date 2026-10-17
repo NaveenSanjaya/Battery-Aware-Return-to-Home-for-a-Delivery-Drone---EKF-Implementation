@@ -345,11 +345,11 @@ Every second, the drone computes the probability that it can still get home with
 
 ### What getting home costs
 
-- **Time home:** distance home (from GPS) ÷ cruise speed, plus about 60 s to land.
+- **Time home:** distance home (from GPS) ÷ cruise speed, plus 40 s to land.
 - **Charge needed:** cruise current × time home ÷ (3600 × estimated capacity), as a fraction of SoC.
 - **Reserve:** we always keep 10% SoC for landing safety.
 
-Example: 3 km from home at 10 m/s is 300 s, plus 60 s to land, so 360 s. At 15 A that uses 1.5 Ah, or 30% of a 5 Ah battery.
+Example: 3.2 km from home at 10 m/s is 320 s, plus 40 s to land, so 360 s. At 15 A that uses 1.5 Ah, or 30% of a 5 Ah battery.
 
 ### From margin to probability
 

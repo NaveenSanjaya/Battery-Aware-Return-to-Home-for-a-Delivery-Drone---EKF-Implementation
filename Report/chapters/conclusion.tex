@@ -3,13 +3,13 @@
 % SKELETON: to be written last. Answer each objective with numbers from Chapter 5.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\todo{One paragraph restating the problem and the approach: an EKF that estimates SoC, polarisation voltage, sensor bias and capacity, and a risk-aware RTH rule that uses the SoC uncertainty.}
+\todo{One paragraph restating the problem and the approach: an EKF that estimates SoC and polarisation voltage while learning the cell resistance (with an observability study of also learning sensor bias and capacity), and a risk-aware RTH rule that uses the SoC uncertainty.}
 
 \section{Answers to the objectives}\label{sec:c_objectives}
 \todo{One short paragraph per objective of Section~\ref{sec:intro_objectives}, each with its key number:}
 \begin{enumerate}
   \item Simulator: \todo{summarise the verification of Section~\ref{sec:r_sim}.}
-  \item EKF: \todo{SoC RMSE vs charge counting; convergence from a wrong start; bias and capacity learning; NEES/NIS.}
+  \item EKF: \todo{SoC RMSE of stages A and B vs charge counting; convergence from a wrong start; $R_0$ learning; what stage C showed about bias and capacity; NEES/NIS.}
   \item Risk-aware RTH rule: \todo{how its decisions differ from the estimate-only rule.}
   \item Evaluation: \todo{Monte Carlo failure rate and unused battery for policies A--D; the threshold-sweep trade-off.}
 \end{enumerate}

@@ -5,13 +5,13 @@
 % numbers in the source files (set with firstnumber=...). If a file changes, update the excerpt.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-This chapter shows how the method of Chapter~\ref{ch:method} is implemented in MATLAB. The simulator is complete and is described with excerpts from the code. The filter, the baseline and the decision rule are still being built; their sections are marked as such and will be completed as the code is finished. The full code is listed in Appendix~\ref{app:code}.
+This chapter shows how the method of Chapter~\ref{ch:method} is implemented in MATLAB. The simulator, the EKF and the charge-counting baseline are complete and are described with excerpts from the code. The decision rule and the Monte Carlo driver are still being built; their sections are marked as such. The full code is listed in Appendix~\ref{app:code}.
 
 %--------------------------------------------------------------------------------------------------
 \section{Tools and code structure}\label{sec:i_structure}
 %--------------------------------------------------------------------------------------------------
 
-The project uses base MATLAB only; no toolbox is required. (The Control System Toolbox's built-in \texttt{extendedKalmanFilter} may be used later as an optional cross-check.) Every script fixes the random-number seed with \texttt{rng}, so each run produces exactly the same random numbers and the results can be reproduced.
+The project uses base MATLAB only; no toolbox is required. (The Control System Toolbox's built-in \texttt{extendedKalmanFilter} may be used later as an optional cross-check.) Every run fixes the random-number seed with \texttt{rng}, so it produces exactly the same random numbers each time and the results can be reproduced. Runs that are compared with each other use the same seed, so they see exactly the same sensor noise.
 
 The code is split into short files that each do one job, so that each can be understood and tested on its own. Table~\ref{tab:i_files} lists the files. All battery quantities in the code are per cell, as in Chapter~\ref{ch:method}.
 
@@ -26,43 +26,59 @@ The code is split into short files that each do one job, so that each can be und
     \midrule
     \texttt{config/battery\_params.m} & Done & Filter, truth and sensor parameters \\
     \texttt{config/ocv\_lookup.m} & Done & OCV and its slope at any SoC \\
+    \texttt{config/soc\_from\_ocv.m} & Done & Inverse lookup: resting voltage to SoC \\
     \texttt{sim/battery\_true\_init.m} & Done & True battery at rest before take-off \\
     \texttt{sim/battery\_true\_step.m} & Done & One step of the true 2-RC battery \\
     \texttt{sim/read\_sensors.m} & Done & Biased, noisy current and noisy voltage \\
     \texttt{sim/make\_mission.m} & Done & Routes, phase durations and currents \\
     \texttt{sim/drone\_init.m} & Done & Drone at home, ready for take-off \\
     \texttt{sim/drone\_step.m} & Done & Moves the drone one step; returns current demand \\
+    \texttt{sim/run\_flight.m} & Done & One flight with truth, sensors, EKF and charge counting \\
+    \texttt{estimators/ekf\_init.m} & Done & Initial state, covariance, stage and tuning \\
+    \texttt{estimators/ekf\_step.m} & Done & One predict and update step \\
+    \texttt{estimators/coulomb\_count.m} & Done & Charge-counting baseline \\
     \texttt{main\_day2\_simulator.m} & Done & Simulator test flight and figures \\
+    \texttt{main\_day3\_ekf.m} & Done & Experiments E1 and E2 with stages A and B \\
     \texttt{learning/day1\_ekf\_by\_hand.m} & Done & One-state EKF exercise (Section~\ref{sec:bg_example}) \\
     \midrule
-    \texttt{estimators/ekf\_init.m} & Planned & Initial state, covariance and tuning \\
-    \texttt{estimators/ekf\_step.m} & Planned & One predict and update step \\
-    \texttt{estimators/coulomb\_count.m} & Planned & Charge-counting baseline \\
     \texttt{decision/p\_safe\_return.m} & Planned & Margin to probability, \eqref{eq:m_margin}--\eqref{eq:m_psafe} \\
     \texttt{decision/rth\_policies.m} & Planned & The four turn-back policies A--D \\
-    \texttt{main\_single\_flight.m} & Planned & One flight, experiments E1--E8 \\
+    \texttt{main\_single\_flight.m} & Planned & Remaining single-flight experiments \\
     \texttt{main\_monte\_carlo.m} & Planned & 500 flights $\times$ 4 policies \\
     \texttt{plots/make\_figures.m} & Planned & Report figures \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-The original plan had a single \texttt{simulate\_truth.m} for the true battery and its sensors. In the implementation this job is split into the battery files (\texttt{battery\_true\_init.m}, \texttt{battery\_true\_step.m}), the sensor file (\texttt{read\_sensors.m}) and the drone files (\texttt{drone\_init.m}, \texttt{drone\_step.m}). Keeping the drone separate from the battery lets a decision policy change the drone's mode without touching the battery code.
+The original plan had a single \texttt{simulate\_truth.m} for the true battery and its sensors. In the implementation this job is split into the battery files (\texttt{battery\_true\_init.m}, \texttt{battery\_true\_step.m}), the sensor file (\texttt{read\_sensors.m}) and the drone files (\texttt{drone\_init.m}, \texttt{drone\_step.m}). Keeping the drone separate from the battery lets a decision policy change the drone's mode without touching the battery code. \texttt{run\_flight.m} joins all the pieces into one complete flight (Section~\ref{sec:i_run_flight}).
 
 %--------------------------------------------------------------------------------------------------
 \section{Parameters}\label{sec:i_params}
 %--------------------------------------------------------------------------------------------------
 
-All numbers live in one function, \texttt{battery\_params.m}, which returns a structure with three parts: \texttt{p.filt} (what the filter believes), \texttt{p.true} (the simulated battery) and \texttt{p.sens} (sensor imperfections). Listing~\ref{lst:i_params} shows the truth and sensor parts. The true values are written as multiples of the filter's values, so the size of each mismatch is visible in the code (Table~\ref{tab:m_params}).
+All numbers live in one function, \texttt{battery\_params.m}, which returns a structure with three parts: \texttt{p.filt} (what the filter believes), \texttt{p.true} (the simulated battery) and \texttt{p.sens} (sensor imperfections). Listing~\ref{lst:i_params} shows all three parts. The true values are written as multiples of the filter's values, so the size of each mismatch is visible in the code (Table~\ref{tab:m_params}). The model-error allowance $\sigma_{\text{model}}$ of \eqref{eq:m_Rv} is stored with the filter's beliefs (line 21), and the slow RC pair (lines 31--32) is at its mild default; experiment E6 changes it to the stress-test value.
 
-\begin{lstlisting}[caption={True battery and sensor parameters (\texttt{config/battery\_params.m}).},label={lst:i_params},firstnumber=22]
+\begin{lstlisting}[caption={Filter, truth and sensor parameters (\texttt{config/battery\_params.m}).},label={lst:i_params},firstnumber=15]
+% ---------- What the filter believes (nominal) ----------
+p.filt.Cn         = 5.0;       % capacity (Ah)
+p.filt.R0         = 0.008;     % ohmic resistance (ohm)
+p.filt.R1         = 0.006;     % polarisation resistance (ohm)
+p.filt.C1         = 5000;      % polarisation capacitance (F) -> tau = 30 s
+p.filt.ocv_offset = 0;         % shift of the OCV curve (V)
+p.filt.sig_model  = 0.010;     % allowance for model error in the voltage (V).
+                               %   The filter's model is never exact; this
+                               %   tells it not to trust its voltage
+                               %   prediction to better than about 10 mV.
+
 % ---------- The "real" battery (truth) ----------
 p.true.Cn         = 5.0;               % change this to test an aged battery
 p.true.R0         = p.filt.R0 * 1.10;  % 10% higher than the filter thinks
 p.true.R1         = p.filt.R1 * 0.90;  % 10% lower
 p.true.C1         = p.filt.C1 * 1.10;  % 10% higher
-p.true.R2         = 0.004;             % second, slow RC pair the filter
-p.true.C2         = 100000;            %   does not know about (tau = 400 s)
+p.true.R2         = 0.0015;            % second, slow RC pair the filter does not
+p.true.C2         = 266667;            %   know about (tau = R2*C2 = 400 s).
+                                       %   Mild on purpose; experiment E6 uses
+                                       %   R2 = 0.004 as a stress test.
 p.true.ocv_offset = -0.005;            % real OCV curve sits 5 mV lower
 p.true.V_cutoff   = 3.0;               % below this (per cell) = battery dead
 
@@ -73,7 +89,7 @@ p.sens.sigV = 0.01;            % voltage sensor noise per cell (V, 1 sigma)
 \end{lstlisting}
 
 %--------------------------------------------------------------------------------------------------
-\section{OCV lookup}\label{sec:i_ocv}
+\section{OCV lookup and initial SoC}\label{sec:i_ocv}
 %--------------------------------------------------------------------------------------------------
 
 \texttt{ocv\_lookup.m} (Listing~\ref{lst:i_ocv}) returns the OCV and, when asked for a second output, its slope. It implements the table of Table~\ref{tab:m_ocv} with \texttt{pchip} interpolation and the finite-difference slope \eqref{eq:m_ocv_slope}. The SoC is clamped to $[0, 1]$ first, so the function never extrapolates beyond the table. An optional \texttt{offset} argument shifts the curve; the simulator uses it to give the true battery its $-5$\,mV offset, while the filter uses the nominal curve. The same function is called with vectors to draw the OCV figure.
@@ -92,6 +108,15 @@ if nargout > 1                                      % slope by finite difference
     slope = (interp1(soc_tab, ocv_tab, hi, 'pchip') - ...
              interp1(soc_tab, ocv_tab, lo, 'pchip')) ./ (hi - lo);
 end
+\end{lstlisting}
+
+Before take-off the battery is at rest, so its voltage equals the OCV. \texttt{soc\_from\_ocv.m} (Listing~\ref{lst:i_soc_from_ocv}) uses this to give the filter its starting guess (Section~\ref{sec:m_ekf_init}). It evaluates the OCV curve on a fine grid of 1001 SoC values and interpolates in the reverse direction, from voltage to SoC. This works because the OCV curve rises monotonically, so each voltage belongs to exactly one SoC.
+
+\begin{lstlisting}[caption={Starting SoC from the resting voltage (\texttt{config/soc\_from\_ocv.m}).},label={lst:i_soc_from_ocv},firstnumber=6]
+if nargin < 2, offset = 0; end
+s   = linspace(0, 1, 1001);
+soc = interp1(ocv_lookup(s, offset), s, V, 'linear', 'extrap');
+soc = min(max(soc, 0), 1);
 \end{lstlisting}
 
 %--------------------------------------------------------------------------------------------------
@@ -174,10 +199,10 @@ end
 \end{lstlisting}
 
 %--------------------------------------------------------------------------------------------------
-\section{The simulation loop}\label{sec:i_loop}
+\section{The simulator test loop}\label{sec:i_loop}
 %--------------------------------------------------------------------------------------------------
 
-\texttt{main\_day2\_simulator.m} flies one mission with no filter, to test the simulator. Listing~\ref{lst:i_loop} shows its main loop. Each second it (1) asks the drone for its current demand, (2) adds the slow random load of \eqref{eq:m_wobble}, (3) steps the true battery, (4) reads the sensors and (5) stops if the battery voltage falls below the cut-off while current flows, or when the drone has landed. The script then prints a summary and saves the figures used in Section~\ref{sec:r_sim}. The planned \texttt{main\_single\_flight.m} will extend this loop with the estimators and the decision rule, which run on the sensor readings \texttt{Im} and \texttt{Vm} only.
+\texttt{main\_day2\_simulator.m} flies one mission with no filter, to test the simulator. Listing~\ref{lst:i_loop} shows its main loop. Each second it (1) asks the drone for its current demand, (2) adds the slow random load of \eqref{eq:m_wobble}, (3) steps the true battery, (4) reads the sensors and (5) stops if the battery voltage falls below the cut-off while current flows, or when the drone has landed. The script then prints a summary and saves the figures used in Section~\ref{sec:r_sim}.
 
 \begin{lstlisting}[caption={Main loop of the simulator test (\texttt{main\_day2\_simulator.m}).},label={lst:i_loop},firstnumber=27]
 wobble = 0;                              % small random load changes (gusts, manoeuvres)
@@ -211,22 +236,160 @@ The charge-counting check reported in Section~\ref{sec:r_sim} is computed after 
 \section{EKF implementation}\label{sec:i_ekf}
 %--------------------------------------------------------------------------------------------------
 
-\todo{Day 3--4. Describe \texttt{ekf\_init.m} (initial state and $P_0$ of \eqref{eq:m_P0}, tuning of Table~\ref{tab:m_tuning}) and \texttt{ekf\_step.m}. Show the predict block (state prediction, $F$ from \eqref{eq:m_F}, $G$ and $Q$ from \eqref{eq:m_G}--\eqref{eq:m_Q}) and the update block ($H$ from \eqref{eq:m_H}, scalar $S$, gain, symmetrisation, SoC clamp) as listings, with a sentence mapping each line to its equation. Note that the voltage noise is called \texttt{Rv} in the code so that it is never confused with the resistors. Describe how Stages A, B and C are selected.}
+The filter is stored in a MATLAB structure \texttt{f} that holds the estimate \texttt{f.x}, the covariance \texttt{f.P} and the settings. Two functions operate on it: \texttt{ekf\_init.m} creates it, and \texttt{ekf\_step.m} runs one predict--update step. The state is always the five-element vector $[\mathrm{SoC}, V_1, b, C_n, R_0]$ of \eqref{eq:m_state}, whatever the stage.
+
+\subsection{Initialisation and stages}\label{sec:i_ekf_init}
+
+Listing~\ref{lst:i_ekf_init} shows the core of \texttt{ekf\_init.m}. Lines 26--28 build the measurement-noise variance \eqref{eq:m_Rv}; the voltage noise is called \texttt{Rv} in the code so that it is never confused with the resistors. The current-noise term uses the nominal $R_0$, so \texttt{Rv} is a constant. Lines 31--32 set the initial estimate \eqref{eq:m_x0} and the initial standard deviations of \eqref{eq:m_P0}, and line 36 the diagonal process-noise terms of Table~\ref{tab:m_tuning}. Lines 38--45 implement the stages of Table~\ref{tab:m_stages}: the vector \texttt{learn} marks which states a stage learns, and lines 44--45 set the initial standard deviation and the process noise of every other state to zero, which freezes it at its nominal value (Section~\ref{sec:m_ekf_stages}). Line 49 builds $P_0$ from the squared standard deviations.
+
+\begin{lstlisting}[caption={Noise settings, initial values and stages (\texttt{estimators/ekf\_init.m}).},label={lst:i_ekf_init},firstnumber=24]
+% Noise settings
+f.sigI = p.sens.sigI;                               % current sensor noise (A)
+f.Rv   = p.sens.sigV^2 ...                          % voltage sensor noise
+       + (p.filt.R0 * p.sens.sigI)^2 ...            % current noise seen through R0
+       + p.filt.sig_model^2;                        % allowance for model error (V^2)
+
+% Starting guess and uncertainty (1 sigma) for [SoC, V1, b, Cn, R0]
+x0  = [soc0; 0; 0; p.filt.Cn; p.filt.R0];
+sd0 = [sig_soc0, 0.01, 1.0, 0.5, 0.004];            % SoC, 10 mV, 1 A, 0.5 Ah, 4 mOhm
+
+% Process noise per step: how much each state may drift in ways the
+% model does not explain (variances)
+q = [1e-8, 1e-6, 1e-6, 1e-7, 1e-9];
+
+switch f.stage
+    case 'A', learn = [1 1 0 0 0];
+    case 'B', learn = [1 1 0 0 1];
+    case 'C', learn = [1 1 1 1 1];
+    otherwise, error('Stage must be ''A'', ''B'' or ''C''.');
+end
+sd0(~learn) = 0;
+q(~learn)   = 0;
+
+f.learn = logical(learn);
+f.x = x0;
+f.P = diag(sd0.^2);
+f.q = q;
+\end{lstlisting}
+
+\subsection{Predict}\label{sec:i_ekf_predict}
+
+Listing~\ref{lst:i_ekf_predict} shows the prediction half of \texttt{ekf\_step.m}. Line 12 forms the bias-corrected current $I_m - \hat{b}$ and line 13 the decay factor $a$. Lines 16--20 are the process model \eqref{eq:m_f_soc}--\eqref{eq:m_f_r0} without noise. Lines 22--26 build the Jacobian $F_k$ of \eqref{eq:m_F}: the identity matrix plus its four non-trivial entries. Line 28 is the noise-input vector $G_k$ of \eqref{eq:m_G}, line 29 the process noise $Q_k$ of \eqref{eq:m_Q}, and line 30 the covariance prediction \eqref{eq:bg_kf_ppred}.
+
+\begin{lstlisting}[caption={EKF prediction (\texttt{estimators/ekf\_step.m}).},label={lst:i_ekf_predict},firstnumber=11]
+soc = f.x(1);  v1 = f.x(2);  b = f.x(3);  Cn = f.x(4);  R0 = f.x(5);
+I = Im - b;                                   % bias-corrected current
+a = exp(-dt / (f.R1 * f.C1));                 % how much of V1 survives one step
+
+% ---------- 1. Predict: move the estimate with the model ----------
+x_pred = [soc - I*dt/(3600*Cn);               % charge counting
+          a*v1 + f.R1*(1 - a)*I;              % slow voltage relaxes toward R1*I
+          b;                                  % bias, capacity and resistance
+          Cn;                                 %   stay the same (apart from
+          R0];                                %   slow random wander)
+
+F = eye(5);                                   % Jacobian of the process model
+F(1,3) = dt/(3600*Cn);                        %   dSoC/db
+F(1,4) = I*dt/(3600*Cn^2);                    %   dSoC/dCn
+F(2,2) = a;                                   %   dV1/dV1
+F(2,3) = -f.R1*(1 - a);                       %   dV1/db
+
+G = [-dt/(3600*Cn); f.R1*(1 - a); 0; 0; 0];   % how current-sensor noise enters
+Q = G * f.sigI^2 * G' + diag(f.q);
+P_pred = F * f.P * F' + Q;                    % uncertainty grows
+\end{lstlisting}
+
+\subsection{Compare and update}\label{sec:i_ekf_update}
+
+Listing~\ref{lst:i_ekf_update} shows the second half. Line 33 reads the OCV and its slope at the predicted SoC. Lines 34--35 compute the expected voltage $h(\hat{x}_k^-, u_k)$ of \eqref{eq:m_h}, using the predicted bias and resistance, and line 36 the innovation \eqref{eq:bg_kf_innov}. Line 38 is the Jacobian $H_k$ of \eqref{eq:m_H} and line 39 the scalar $S_k$ of \eqref{eq:bg_kf_s}. Because $S_k$ is a single number, line 42 computes the gain with a division instead of a matrix inverse, and line 43 updates the state \eqref{eq:bg_kf_xupd}. Lines 44--46 are the Joseph-form covariance update \eqref{eq:m_joseph} followed by symmetrisation. Lines 48--50 apply the safeguards of Section~\ref{sec:m_ekf_safeguards}. The function also returns the innovation, $S_k$, the gain and the NIS (line 54) for the consistency checks.
+
+For a frozen state the rows and columns of $P$ are zero, so its entry of \texttt{K} is zero and line 43 never moves it. The same code therefore serves all three stages without any \texttt{if} statements.
+
+\begin{lstlisting}[caption={EKF compare and update (\texttt{estimators/ekf\_step.m}).},label={lst:i_ekf_update},firstnumber=32]
+% ---------- 2. Compare: expected vs measured voltage ----------
+[ocv, docv] = ocv_lookup(x_pred(1), f.ocv_offset);
+I_pred = Im - x_pred(3);
+V_pred = ocv - x_pred(2) - x_pred(5)*I_pred;
+y = Vm - V_pred;                              % innovation (the surprise)
+
+H = [docv, -1, x_pred(5), 0, -I_pred];        % Jacobian of the measurement model
+S = H * P_pred * H' + f.Rv;                   % expected size of the surprise (one number)
+
+% ---------- 3. Update: move by K x surprise ----------
+K = P_pred * H' / S;                          % Kalman gain (5x1)
+x = x_pred + K * y;
+IKH = eye(5) - K*H;
+P = IKH * P_pred * IKH' + K * f.Rv * K';      % Joseph form: stays symmetric and positive
+P = (P + P') / 2;
+
+x(1) = min(max(x(1), 0), 1);                  % SoC stays in [0, 1]
+x(4) = max(x(4), 0.5);                        % capacity stays positive
+x(5) = max(x(5), 1e-4);                       % resistance stays positive
+\end{lstlisting}
 
 %--------------------------------------------------------------------------------------------------
 \section{Charge-counting baseline}\label{sec:i_cc}
 %--------------------------------------------------------------------------------------------------
 
-\todo{Day 3. Describe \texttt{coulomb\_count.m}: Equation~\eqref{eq:bg_cc} with the measured current, the nominal capacity and the assumed starting SoC.}
+\texttt{coulomb\_count.m} (Listing~\ref{lst:i_cc}) is Equation~\eqref{eq:bg_cc} applied to the measured current. It is called with the nominal capacity and starts from the same initial guess as the EKF, so the two estimators differ only in whether they use the voltage.
+
+\begin{lstlisting}[caption={Charge-counting baseline (\texttt{estimators/coulomb\_count.m}).},label={lst:i_cc},firstnumber=4]
+soc = soc - Im * dt / (3600 * Cn);
+\end{lstlisting}
+
+%--------------------------------------------------------------------------------------------------
+\section{One complete flight}\label{sec:i_run_flight}
+%--------------------------------------------------------------------------------------------------
+
+\texttt{run\_flight.m} flies one mission with the true battery, the sensors, the EKF and charge counting together, and records everything each second. The experiment is described by a small options structure: the true starting SoC, the estimators' starting guess, the initial SoC uncertainty, the EKF stage and the random seed.
+
+Listing~\ref{lst:i_run_init} shows what happens before take-off. The battery is at rest, so line 20 reads the voltage sensor once with zero current, which gives the OCV plus sensor noise. If the experiment does not prescribe a starting guess (\texttt{NaN}), line 23 converts that resting voltage into an SoC with \texttt{soc\_from\_ocv}, using the filter's nominal OCV curve. The EKF and charge counting then start from the same guess (lines 26--27).
+
+\begin{lstlisting}[caption={Before take-off: starting guess from the resting voltage (\texttt{sim/run\_flight.m}).},label={lst:i_run_init},firstnumber=18]
+% ---- Before takeoff: battery at rest, so voltage = OCV ----
+batt = battery_true_init(opts.soc_true0);
+[~, Vm0] = read_sensors(0, ocv_lookup(opts.soc_true0, p.true.ocv_offset), p.sens);
+soc_guess0 = opts.soc_guess0;
+if isnan(soc_guess0)
+    soc_guess0 = soc_from_ocv(Vm0, p.filt.ocv_offset);
+end
+
+f      = ekf_init(p, opts.stage, soc_guess0, opts.sig_soc0);
+soc_cc = soc_guess0;                         % charge counting starts from the same guess
+drone  = drone_init(m);
+\end{lstlisting}
+
+The flight loop is the simulator test loop of Listing~\ref{lst:i_loop}, with the two estimators added after the sensors (Listing~\ref{lst:i_run_step}). The estimators receive only the measured current \texttt{Im} and voltage \texttt{Vm}, never the true values.
+
+\begin{lstlisting}[caption={Each second: truth, sensors, EKF and baseline (\texttt{sim/run\_flight.m}).},label={lst:i_run_step},firstnumber=52]
+    [batt, V] = battery_true_step(batt, I, p.true, dt);   % truth
+    [Im, Vm]  = read_sensors(I, V, p.sens);               % what the drone sees
+    [f, info] = ekf_step(f, Im, Vm, dt);                  % EKF
+    soc_cc    = coulomb_count(soc_cc, Im, p.filt.Cn, dt); % baseline
+\end{lstlisting}
+
+\texttt{main\_day3\_ekf.m} uses \texttt{run\_flight} to run experiments E1 and E2 with stages A and B (Listing~\ref{lst:i_day3}). Both stages use the same seed in each experiment, so they see exactly the same noise and any difference between them comes from the filter alone. The script then prints a table of SoC errors and consistency measures and saves the figures for Sections~\ref{sec:r_e1} and~\ref{sec:r_e2}.
+
+\begin{lstlisting}[caption={Experiment definitions for E1 and E2 (\texttt{main\_day3\_ekf.m}).},label={lst:i_day3},firstnumber=16]
+% E1: battery at 95%, starting guess read from the resting voltage
+E1 = struct('soc_true0', 0.95, 'soc_guess0', NaN,  'sig_soc0', 0.03, 'seed', 2);
+% E2: battery really at 85%, but everyone assumes it is full
+E2 = struct('soc_true0', 0.85, 'soc_guess0', 1.00, 'sig_soc0', 0.20, 'seed', 2);
+
+E1.stage = 'A';  r1A = run_flight(p, m, E1);
+E1.stage = 'B';  r1B = run_flight(p, m, E1);
+E2.stage = 'A';  r2A = run_flight(p, m, E2);
+E2.stage = 'B';  r2B = run_flight(p, m, E2);
+\end{lstlisting}
 
 %--------------------------------------------------------------------------------------------------
 \section{Decision rule and policies}\label{sec:i_decision}
 %--------------------------------------------------------------------------------------------------
 
-\todo{Day 5. Describe \texttt{p\_safe\_return.m} (Equations~\eqref{eq:m_thome}--\eqref{eq:m_psafe}, with $\Phi$ computed from \texttt{erfc}) and \texttt{rth\_policies.m} (policies A--D of Table~\ref{tab:m_policies}). State the final values of $t_{\text{land}}$, $\sigma_{\text{trip}}$ and $p^{\ast}$. Explain how a policy's decision sets \texttt{d.mode = 'return'} and how the true battery then flies the drone home.}
+\todo{Day 5. Describe \texttt{p\_safe\_return.m} (Equations~\eqref{eq:m_thome}--\eqref{eq:m_psafe}, with $\Phi$ computed from \texttt{erfc}) and \texttt{rth\_policies.m} (policies A--D of Table~\ref{tab:m_policies}). State the final values of $\sigma_{\text{trip}}$ and $p^{\ast}$. Explain how a policy's decision sets \texttt{d.mode = 'return'} and how the true battery then flies the drone home.}
 
 %--------------------------------------------------------------------------------------------------
-\section{Experiment and Monte Carlo drivers}\label{sec:i_drivers}
+\section{Remaining experiment and Monte Carlo drivers}\label{sec:i_drivers}
 %--------------------------------------------------------------------------------------------------
 
-\todo{Day 4--5. Describe \texttt{main\_single\_flight.m} (how each experiment E1--E8 is configured) and \texttt{main\_monte\_carlo.m} (how the random factors of Table~\ref{tab:m_mc_factors} are drawn, and how all four policies are given the same random draws). Give the run time if it is notable.}
+\todo{Day 4--5. Describe how experiments E3--E8 are configured (e.g.\ stage C runs, the E6 stress-test parameters) and \texttt{main\_monte\_carlo.m} (how the random factors of Table~\ref{tab:m_mc_factors} are drawn, and how all four policies are given the same random draws). Give the run time if it is notable.}
