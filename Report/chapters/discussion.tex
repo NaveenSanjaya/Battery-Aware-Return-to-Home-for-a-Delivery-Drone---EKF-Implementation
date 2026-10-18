@@ -14,8 +14,22 @@
 \section{Observability of bias and capacity}\label{sec:d_observability}
 \todo{Use E3, E4 and E8 and the design-stage findings of Section~\ref{sec:m_ekf_investigation}: within one flight, $b$ and $R_0$ have almost proportional columns in $H$ when the current is steady (Equation~\eqref{eq:m_confound}), and $C_n$ shows only through slow SoC drift, so the three are confounded. Discuss the role of current changes (take-off vs cruise) in separating them, why learning $R_0$ alone (stage B) works best, and that the voltage feedback already limits the effect of an unlearned bias. Future work: estimate $b$ and $C_n$ across several flights, where much more current variation is available.}
 
+Notes from Day 3 (to expand):
+\begin{itemize}
+  \item E1 and E2 show the observability argument in a real run (Section~\ref{sec:r_e1}): during the constant-current take-off, SoC and $R_0$ cannot be separated, and the stage-B band stays wide (about $\pm 8.5\%$). The current step from 30\,A to 15\,A at about 0.5\,min is the excitation that separates them: $\partial h/\partial R_0 = -(I_m - b)$ changes with the current, while $d\,\mathrm{OCV}/d\,\mathrm{SoC}$ does not. The error jumps, the band collapses to about $\pm 2.5\%$ and $R_0$ moves to the true value at that moment.
+  \item Consequence for operations: a stage-B filter needs a change in current before it is trustworthy. Take-off and hover provide this naturally; a flight with constant current would not. Its wide band during take-off is honest, and the RTH rule would treat it cautiously.
+  \item In E2 the same effect slows stage B's recovery from a wrong start (30\,s at about $+5$--$7\%$), while stage A, which has no $R_0$ to confuse with SoC, corrects the start at once but then drifts. This trade-off between immediate correction and long-term accuracy is worth explaining.
+\end{itemize}
+
 \section{Effect of model mismatch}\label{sec:d_mismatch}
 \todo{Use E1, E6 and the design-stage checks: a systematic model error is not white noise, so inflating $R$ alone cannot remove it (Section~\ref{sec:m_ekf_investigation}, Step~3); learning the dominant error ($R_0$) can. Discuss the role and cost of the 10\,mV model-error allowance (honest bands vs mean NIS of about 0.5). Use the Day~2 slowly widening voltage gap (Section~\ref{sec:r_sim}) and the E6 stress test to show where the unmodelled slow RC pair appears in the estimates. Possible fixes: a second RC state in the filter, or adaptive noise estimation.}
+
+Notes from Day 3 (to expand):
+\begin{itemize}
+  \item Stage B still ends E1 at $-1.53\%$, drifting slowly low over the flight. This is attributed to the unmodelled slow RC pair ($R_2 = 1.5$\,m$\Omega$, $\tau_2 = 400$\,s), which builds up over the flight and is partly read as lower SoC. The error stays inside the $\pm 3\sigma$ band, so the uncertainty is honest. E6 (with $R_2 = 4$\,m$\Omega$) will show how this grows with a larger mismatch.
+  \item Stage A had a mean NIS of 0.54 (E1) although its SoC was biased and its band contained the truth only 17\% of the time. Innovation-based checks only test whether the voltage is explained, and a wrong SoC can explain it. Only truth-based checks (NEES, $\pm 3\sigma$ coverage), available in simulation, reveal this. This is a limitation of checking a real filter from flight logs alone.
+  \item The E1 resting-voltage guess was about 3\% low from a single noisy reading. Averaging several readings before take-off would reduce this; worth mentioning as a cheap improvement.
+\end{itemize}
 
 \section{Value of uncertainty in the return-to-home decision}\label{sec:d_value_uncertainty}
 \todo{Use the single-flight and Monte Carlo results: compare policies C and D, which share the same estimate and differ only in using $\sigma_{\text{SoC}}$; explain each policy's failures and wasted battery; discuss the threshold-sweep trade-off and how an operator would choose $p^{\ast}$.}

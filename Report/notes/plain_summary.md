@@ -2,7 +2,7 @@
 
 This is a study aid, not part of the report. For each chapter written so far, it says in simple words what the chapter says and why it matters. It then gives a few questions an examiner might ask, with short answers.
 
-Chapters 5 (after the simulator check), 6 and 7 are still skeletons. They will be added here when they are written.
+Chapter 5 after E2, and Chapters 6 and 7, are still skeletons. They will be added here when they are written.
 
 ---
 
@@ -141,6 +141,34 @@ Chapters 5 (after the simulator check), 6 and 7 are still skeletons. They will b
    The slow RC pair (τ = 400 s) keeps charging for most of the flight. The filter does not have this pair, so it will have to cope with the extra drop.
 3. *Is one run enough to prove anything?*
    It is enough to check that the simulator behaves sensibly. It does not give statistics. The 500-flight Monte Carlo study will do that.
+
+---
+
+## Chapter 5 (part written): E1 and E2, the first EKF results
+
+**What it says**
+
+- Real MATLAB runs on the short mission, comparing charge counting, EKF stage A (SoC, V1) and **stage B** (also learns R0). All see exactly the same noisy sensors.
+- **E1 (normal flight, true 95%):** the starting guess from the resting voltage was about 3% low (92%), because one noisy voltage reading near full charge is worth about 1% SoC per 10 mV.
+  - Charge counting kept that error and added bias drift: **−5.5%** at landing (RMSE 4.36%).
+  - Stage A drifted low to **−3.9%** and its band held the truth only 17% of the time: biased and overconfident, as predicted.
+  - Stage B: RMSE **0.97%**, final −1.5%, truth inside its band **100%** of the time. Its R0 estimate ended at 8.85 mΩ (true 8.8, start 8.0).
+- **The big moment is at 0.5 min**, when take-off ends and the current drops from 30 A to 15 A. Stage B's error jumps from −3% to +1%, its band shrinks from ±8.5% to ±2.5%, and R0 jumps to the right value. Before that, with a steady current, the filter could not tell "lower SoC" from "higher resistance". The current change is what separates them.
+- **Innovations** look like random noise inside their expected size, so the filter is healthy. Mean NIS is 0.51, slightly below 1, because of the deliberate 10 mV safety allowance.
+- **E2 (true 85%, everyone assumes 100%):** charge counting stayed about 13–15% too high. At landing the battery was really at about 9% (below the 10% reserve), but charge counting thought about 21%. Stage B sat 5–7% high during take-off, then snapped to the truth at the current step (error below 2% after 42 s) and ended at −0.4%.
+- Stage B still ends E1 1.5% low. This is probably the slow RC pair the filter does not know about, but the error stays inside its band, so it is honest about it.
+- The MATLAB numbers match the earlier Python checks in pattern (stage B about 1% RMSE in both).
+
+**Why it matters:** this is the first proof that the EKF works. Learning R0 cut the error to about a quarter of charge counting's, and the uncertainty band is honest. E2 shows why the drone needs this: with charge counting, it would think it had a fifth of its battery left when it was nearly empty.
+
+**Examiner questions**
+
+1. *Why does stage B's error jump at 0.5 min?*
+   During take-off the current is constant, so a low voltage could mean "less charge" or "more resistance", and the filter can't tell which. When the current halves, the resistance part of the voltage halves but the OCV part doesn't. That difference reveals R0, and then the SoC falls into place.
+2. *Why is the mean NIS below 1? Isn't that a problem?*
+   NIS below 1 means the filter is a bit more cautious than needed. That is on purpose: we added a 10 mV allowance for model error so the bands stay honest (100% of the time inside here). For a safety decision, a slightly too-wide band is much better than a too-narrow one.
+3. *Stage A's NIS was also fine (0.54), yet it was wrong. How?*
+   NIS only checks whether the voltage is explained. Stage A explains the voltage perfectly, but with the wrong SoC. Only comparing with the true SoC (possible in simulation) shows the error.
 
 ---
 

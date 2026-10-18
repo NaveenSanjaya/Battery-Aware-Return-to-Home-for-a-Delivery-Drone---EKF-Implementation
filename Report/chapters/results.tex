@@ -94,13 +94,97 @@ The simulator behaves as intended. The voltage sags realistically under load, it
 \section{Estimation experiments}\label{sec:r_estimation}
 %--------------------------------------------------------------------------------------------------
 
-\todo{Short introduction: which mission and settings all experiments share, and what is changed in each (Table~\ref{tab:m_experiments}).}
+Experiments E1 and E2 were run with \texttt{main\_day3\_ekf.m} (Section~\ref{sec:i_run_flight}) on the short mission, with the default true battery of Table~\ref{tab:m_params} (slow pair $R_2 = 1.5$\,m$\Omega$), the sensor errors of Section~\ref{sec:m_sensors} (current bias $+0.5$\,A) and random seed~2. Three estimators were compared on exactly the same sensor readings: charge counting, EKF stage~A (learns SoC and $V_1$) and EKF stage~B (also learns $R_0$). Both EKF stages used the model-error allowance $\sigma_{\text{model}} = 10$\,mV. Table~\ref{tab:r_e1e2} summarises the results. The convergence time is the last time the SoC error was 2\% or more; ``never'' means the error was still at least 2\% at landing.
+% TODO: Add the short introduction for the remaining experiments (E3-E8) when they are run.
+
+\begin{table}[htbp]
+  \centering
+  \caption[SoC estimation in E1 and E2.]{SoC estimation in E1 and E2 (MATLAB, short mission, seed 2). Errors are estimate minus truth, in percentage points of SoC. Final: error at landing. Max: largest absolute error. In $\pm 3\sigma$: share of time the truth was inside the EKF's band. NIS: mean NIS. $<2\%$ after: time after which the error stayed below 2\%.}
+  \label{tab:r_e1e2}
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}llcccccc@{}}
+    \toprule
+    & Estimator & RMSE & Final & Max & In $\pm 3\sigma$ & NIS & $<2\%$ after \\
+    \midrule
+    E1 & Charge counting & 4.36\% & $-5.50\%$ & 5.50\% & -- & -- & -- \\
+       & EKF stage A     & 2.51\% & $-3.89\%$ & 3.90\% & 17\%  & 0.54 & never \\
+       & EKF stage B     & 0.97\% & $-1.53\%$ & 3.76\% & 100\% & 0.51 & 30\,s \\
+    \midrule
+    E2 & Charge counting & 13.85\% & $+12.64\%$ & 15.00\% & -- & -- & -- \\
+       & EKF stage A     & 2.49\% & $-2.49\%$ & 3.62\% & 18\%  & 0.60 & never \\
+       & EKF stage B     & 1.32\% & $-0.38\%$ & 7.52\% & 100\% & 0.51 & 42\,s \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day3_soc_tracking.png}
+  \caption{SoC estimates in E1 (top) and E2 (bottom): truth (black), charge counting (red dashed), EKF stage A (orange) and stage B (blue) with its $\pm 3\sigma$ band. Notice that stage B stays on the true SoC in both flights, while charge counting keeps its starting error, and in E2 believes the battery holds about 21\% at landing when it really holds about 9\%.}
+  \label{fig:r_soc_tracking}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day3_soc_error.png}
+  \caption{SoC error (estimate minus truth) in E1 (top) and E2 (bottom), with the stage-B $\pm 3\sigma$ band. Notice the jump in the stage-B error and the collapse of its band at about 0.5\,min, when take-off ends; after that, the stage-B error stays inside its band, while stage A drifts steadily below it and charge counting drifts linearly.}
+  \label{fig:r_soc_error}
+\end{figure}
 
 \subsection{E1: Nominal flight}\label{sec:r_e1}
-\todo{Day 3 (\texttt{main\_day3\_ekf.m}). True SoC 95\%, start read from the resting voltage, $\sigma_{\text{SoC},0} = 3\%$. Figure: measured vs expected voltage and innovations within $\pm 3\sqrt{S}$ (\texttt{fig\_e1\_voltage\_innovation.png}). Figure: SoC truth vs charge counting vs stages A and B, with the stage-B $\pm 3\sigma$ band (\texttt{fig\_soc\_tracking.png}, \texttt{fig\_soc\_error.png}). Figure: stage-B $R_0$ estimate vs the true 8.8\,m$\Omega$ (\texttt{fig\_r0\_estimate.png}). Table: RMSE, final error, max error, \% inside $\pm 3\sigma$ and mean NIS for each estimator. Compare with the design-stage checks of Section~\ref{sec:m_ekf_investigation}.}
+
+\textbf{Starting guess.} The true battery started at 95\%. The SoC read from the resting voltage before take-off was about 92\%, roughly 3\% low. Near full charge the OCV curve rises by about 10\,mV per 1\% SoC (Table~\ref{tab:m_ocv}, 90--100\%), so the $-5$\,mV offset of the true curve accounts for about 0.5\% of this, and the rest comes from the noise on the single voltage reading (10\,mV, about 1\% SoC per standard deviation). All three estimators started from this guess.
+
+\textbf{Charge counting} never corrects the start error and adds the drift caused by the sensor bias. Its error grows linearly from about $-3\%$ to $-5.50\%$ at landing (Figure~\ref{fig:r_soc_error}). The growth matches \eqref{eq:bg_cc_drift}: a $+0.5$\,A bias over about 14\,minutes adds about $-2.4\%$.
+
+\textbf{Stage A} (no $R_0$ state) first moves towards the truth, but then drifts steadily low. It ends at $-3.89\%$ and spends most of the flight outside the stage-B band. Its own $\pm 3\sigma$ band contained the truth only 17\% of the time: the filter is both biased and overconfident. This is the behaviour the design-stage investigation predicted (Section~\ref{sec:m_ekf_investigation}): the true $R_0$ is 10\% higher than the filter assumes, and stage~A can only explain the extra sag as a lower SoC.
+
+Stage~A's mean NIS of 0.54 looks healthy, and this is itself a lesson. Stage~A explains the measured voltage well, but with the wrong SoC, so its innovations stay small. The innovation-based checks only see whether the voltage is explained, not whether the hidden state is right. Only a comparison with the truth (NEES, or the $\pm 3\sigma$ check above) reveals the bias, and that is possible only in simulation.
+
+\textbf{Stage B} ends at $-1.53\%$ with an RMSE of 0.97\%, less than a quarter of the charge-counting RMSE and less than half that of stage~A. Its $\pm 3\sigma$ band contained the truth 100\% of the time.
+
+\textbf{The take-off current step.} The most instructive moment of the flight is at about 0.5\,min, when take-off ends and the current steps from 30\,A to 15\,A. At that moment three things happen together (Figures~\ref{fig:r_soc_error} and~\ref{fig:r_r0}):
+\begin{itemize}
+  \item the stage-B SoC error jumps from about $-3\%$ to about $+1\%$;
+  \item its $\pm 3\sigma$ band collapses from about $\pm 8.5\%$ to about $\pm 2.5\%$;
+  \item the $R_0$ estimate jumps from about 7.7--8.0\,m$\Omega$ to about 8.9\,m$\Omega$.
+\end{itemize}
+During take-off the current is almost constant at 30\,A. A voltage that is lower than expected can then be explained equally well by a lower SoC or by a higher $R_0$, so the two cannot be separated, and the filter keeps both uncertain. The measurement Jacobian \eqref{eq:m_H} shows why the current step resolves this. The SoC entry, $d\,\mathrm{OCV}/d\,\mathrm{SoC}$, does not depend on the current, but the $R_0$ entry, $-(I_m - \hat{b})$, halves when the current halves. Only when the current changes does the voltage carry separate information about the two states. The current step provides this \emph{excitation}: the instant voltage jump it causes has the size $R_0\,\Delta I$, which pins down $R_0$, and with $R_0$ known the remaining voltage level pins down the SoC. This is the observability argument of Section~\ref{sec:m_ekf_investigation} seen in a real run, and it is why the stage-B error falls below 2\% exactly 30\,s into the flight, when take-off ends.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day3_r0_estimate.png}
+  \caption{Stage-B estimate of $R_0$ in E1, with its $\pm 3\sigma$ band. Notice that the estimate barely moves during the constant-current take-off, then jumps to the true value (8.8\,m$\Omega$) when the current steps down at about 0.5\,min, and that the band always contains the true value.}
+  \label{fig:r_r0}
+\end{figure}
+
+\textbf{Resistance estimate.} After the step the $R_0$ estimate settles between about 8.8 and 9.1\,m$\Omega$ and ends the flight at 8.85\,m$\Omega$, against a true value of 8.8\,m$\Omega$ and a starting value of 8.0\,m$\Omega$. Its $\pm 3\sigma$ band, about $\pm 1$\,m$\Omega$ wide, always contains the true value.
+
+\textbf{Is the filter honest?} Figure~\ref{fig:r_e1_innov} compares the measured voltage with the voltage stage~B expected before each update. The expected voltage follows every sag and step. The innovations look like white noise around zero and stay well inside $\pm 3\sqrt{S_k}$ after the first few seconds; the band is wide only at the very start because of the large initial uncertainty. The mean NIS of 0.51 is below 1, so the filter is slightly more cautious than necessary. This is the expected effect of the 10\,mV model-error allowance, chosen on purpose to keep the bands honest (Table~\ref{tab:m_sigmodel}).
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day3_e1_voltage_innovation.png}
+  \caption{E1, stage B. Top: measured cell voltage (grey) and the voltage the EKF expected before each update (blue). Bottom: innovations with their expected size $\pm 3\sqrt{S}$. Notice that the model follows every sag and step, and that the innovations look like zero-mean noise well inside the band after the first seconds.}
+  \label{fig:r_e1_innov}
+\end{figure}
+
+\textbf{Remaining error.} Stage~B still drifts slowly low during the flight and ends at $-1.53\%$. The most likely cause is the slow RC pair ($R_2 = 1.5$\,m$\Omega$, $\tau_2 = 400$\,s), which only the true battery has and which builds up over the flight (Section~\ref{sec:m_why_mismatch}). The filter has no state for it, so part of the extra drop is read as a lower SoC. The error stays inside the $\pm 3\sigma$ band, so the filter's stated uncertainty remains honest; this is discussed further in Section~\ref{sec:d_mismatch}.
 
 \subsection{E2: Wrong initial SoC}\label{sec:r_e2}
-\todo{Day 3. True SoC 85\%, both estimators assume 100\%, $\sigma_{\text{SoC},0} = 20\%$. Figures: SoC and SoC error with $\pm 3\sigma$ bounds (same files as E1). Report the convergence time (last time the error was 2\% or more, as printed by the script) for stages A and B, and the error of charge counting. Explain the convergence speed using the OCV slope and the gain.}
+
+In E2 the true battery started at 85\%, but all three estimators assumed a full battery (100\%). The EKF was told that this guess was uncertain ($\sigma_{\text{SoC},0} = 20\%$).
+
+\textbf{Charge counting} keeps the $+15\%$ start error for the whole flight, reduced slowly by the bias drift, and ends $+12.64\%$ high. The consequence is serious. At landing the true SoC is only about 9\% (8.6\%), below the 10\% reserve, while charge counting believes the battery still holds about 21\%. A drone relying on charge counting would land nearly empty while believing it had a fifth of its battery left. On a longer route it would have flown on past the point of no return. This is exactly the failure the risk-aware RTH rule is designed to prevent.
+
+\textbf{Stage B} starts at 100\% with a wide band. For the first 30\,s, during take-off, it sits about 5--7\% too high (maximum error 7.52\%). Then, at the take-off current step, it converges: within about 1\% of the truth by about 1\,min, and with the error staying below 2\% after 42\,s. For the rest of the flight it stays close to the truth and ends at $-0.38\%$, inside its band 100\% of the time. The slow start has the same cause as in E1. While the current is constant, a voltage that is lower than a full battery would give can be explained partly by a higher $R_0$ instead of a lower SoC, so stage~B cannot fully correct the SoC until the current step separates the two.
+
+\textbf{Stage A} has no $R_0$ state, so it has no such ambiguity and corrects the start error within the first seconds. But it then drifts low for the same reason as in E1, ends at $-2.49\%$, and contains the truth in its band only 18\% of the time. Its ``never'' in Table~\ref{tab:r_e1e2} reflects this late drift, not a failure to recover from the wrong start.
+
+\subsection{Comparison with the design-stage checks}\label{sec:r_e1e2_python}
+
+The MATLAB results show the same pattern as the design-stage checks in the Python port (Section~\ref{sec:m_ekf_investigation}). For stage~B, the SoC RMSE was 0.97\% in MATLAB against 1.04\% in the port for E1, and 1.32\% against 1.00\% for E2. The two implementations use different random-number generators, so the same seed gives different noise, and single-run numbers differ slightly. The largest difference is for charge counting in E1 (4.36\% in MATLAB against 1.60\% in the port). This is because the MATLAB resting-voltage guess happened to be about 3\% low, and charge counting never corrects a start error. The averages over many missions in the Monte Carlo study (Section~\ref{sec:r_mc}) will remove this single-run luck.
 
 \subsection{E3: Bias observability (stage C)}\label{sec:r_e3}
 \todo{Bias $+0.8$\,A, stage C. Figure: bias and $R_0$ estimates with $\pm 3\sigma$ bands vs truth. Show whether the bias is learned in one flight or confused with $R_0$, as predicted by \eqref{eq:m_confound}; compare the SoC error with stage B and charge counting.}
