@@ -5,7 +5,7 @@
 % numbers in the source files (set with firstnumber=...). If a file changes, update the excerpt.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-This chapter shows how the method of Chapter~\ref{ch:method} is implemented in MATLAB. The simulator, the EKF and the charge-counting baseline are complete and are described with excerpts from the code. The decision rule and the Monte Carlo driver are still being built; their sections are marked as such. The full code is listed in Appendix~\ref{app:code}.
+This chapter shows how the method of Chapter~\ref{ch:method} is implemented in MATLAB. The simulator, the EKF, the charge-counting baseline, the return-to-home decision layer and the Monte Carlo study are all complete, and each is described with excerpts from the code. The full code is listed in Appendix~\ref{app:code}.
 
 %--------------------------------------------------------------------------------------------------
 \section{Tools and code structure}\label{sec:i_structure}
@@ -42,12 +42,12 @@ The code is split into short files that each do one job, so that each can be und
     \texttt{main\_day3\_ekf.m} & Done & Experiments E1 and E2 with stages A and B \\
     \texttt{main\_day4\_experiments.m} & Done & Experiments E3--E8 \\
     \texttt{learning/day1\_ekf\_by\_hand.m} & Done & One-state EKF exercise (Section~\ref{sec:bg_example}) \\
-    \midrule
-    \texttt{decision/p\_safe\_return.m} & Planned & Margin to probability, \eqref{eq:m_margin}--\eqref{eq:m_psafe} \\
-    \texttt{decision/rth\_policies.m} & Planned & The four turn-back policies A--D \\
-    \texttt{main\_single\_flight.m} & Planned & One flight with the four RTH policies \\
-    \texttt{main\_monte\_carlo.m} & Planned & 500 flights $\times$ 4 policies \\
-    \texttt{plots/make\_figures.m} & Planned & Report figures \\
+    \texttt{decision/trip\_soc.m} & Done & SoC needed to get home, \eqref{eq:m_dsoc_home} \\
+    \texttt{decision/p\_safe\_return.m} & Done & Margin to probability, \eqref{eq:m_margin}--\eqref{eq:m_psafe} \\
+    \texttt{decision/rth\_policy.m} & Done & The four turn-back policies A--D \\
+    \texttt{sim/draw\_conditions.m} & Done & Random conditions of one Monte Carlo mission \\
+    \texttt{sim/run\_mission\_rth.m} & Done & One long mission with EKF and an RTH policy \\
+    \texttt{main\_day5\_rth.m} & Done & Demo mission, Monte Carlo study, threshold sweep \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -473,10 +473,133 @@ end
 \section{Decision rule and policies}\label{sec:i_decision}
 %--------------------------------------------------------------------------------------------------
 
-\todo{Day 5. Describe \texttt{p\_safe\_return.m} (Equations~\eqref{eq:m_thome}--\eqref{eq:m_psafe}, with $\Phi$ computed from \texttt{erfc}) and \texttt{rth\_policies.m} (policies A--D of Table~\ref{tab:m_policies}). State the final values of $\sigma_{\text{trip}}$ and $p^{\ast}$. Explain how a policy's decision sets \texttt{d.mode = 'return'} and how the true battery then flies the drone home.}
+The decision layer has three short functions in \texttt{decision/}. \texttt{trip\_soc.m} (Listing~\ref{lst:i_trip}) is Equation~\eqref{eq:m_dsoc_home}: line 15 is the cruise time \eqref{eq:m_thome}, line 16 the charge for cruising home (with the bias removed from the measured cruise current) and for landing (with the nominal landing current as is), and line 17 divides by the capacity. The same function serves the EKF policies, called with $\hat{b}$ and $\hat{C}_n$, and policy B, called with $b = 0$ and the rated 5\,Ah.
+
+\begin{lstlisting}[caption={SoC needed to get home (\texttt{decision/trip\_soc.m}).},label={lst:i_trip},firstnumber=15]
+t_cruise = dist_home / m.v_cruise;                      % s
+charge   = (I_cruise - b) * t_cruise + m.I_land * m.T_land;   % A*s
+dsoc     = charge / (3600 * Cn);
+\end{lstlisting}
+
+\texttt{p\_safe\_return.m} (Listing~\ref{lst:i_psafe}) takes the stage-C filter and computes the margin \eqref{eq:m_margin} (line 17), the two standard deviations and their combination \eqref{eq:m_sigma_total} (lines 19--21), and the probability \eqref{eq:m_psafe} with \texttt{erfc} (line 23).
+
+\begin{lstlisting}[caption={Probability of a safe return (\texttt{decision/p\_safe\_return.m}).},label={lst:i_psafe},firstnumber=15]
+soc = f.x(1);  b = f.x(3);  Cn = f.x(4);
+dsoc   = trip_soc(dist_home, I_cruise, b, Cn, m);
+margin = soc - dsoc - rp.reserve;
+
+sig_soc   = sqrt(f.P(1,1));          % from the EKF: how unsure is the SoC
+sig_trip  = rp.trip_frac * dsoc;     % wind and load surprises on the way home
+sig_total = sqrt(sig_soc^2 + sig_trip^2);
+
+ps = 0.5 * erfc(-margin / (sqrt(2) * sig_total));   % normal CDF, base MATLAB
+\end{lstlisting}
+
+\texttt{rth\_policy.m} (Listing~\ref{lst:i_policy}) implements the four rules of Table~\ref{tab:m_policies}. It receives a small structure \texttt{s} with what the drone knows this second. Policy A needs a memory: \texttt{low\_count} counts consecutive seconds below the voltage threshold and is reset by any reading above it (line 14), so a single noisy dip cannot trigger a return.
+
+\begin{lstlisting}[caption={The four turn-back policies (\texttt{decision/rth\_policy.m}).},label={lst:i_policy},firstnumber=11]
+low_count = s.low_count;
+switch policy
+    case 'A'   % voltage stays below the threshold for V_hold seconds
+        if s.Vm < rp.V_thr, low_count = low_count + 1; else, low_count = 0; end
+        go_home = low_count >= rp.V_hold;
+    case 'B'   % charge counting says the margin is gone
+        go_home = s.soc_cc - s.dsoc_cc - rp.reserve < 0;
+    case 'C'   % EKF estimate says the margin is gone
+        go_home = s.margin < 0;
+    case 'D'   % EKF is no longer sure enough of getting home with the reserve
+        go_home = s.ps < rp.p_thr;
+    otherwise
+        error('Unknown policy "%s".', policy);
+end
+\end{lstlisting}
 
 %--------------------------------------------------------------------------------------------------
-\section{Single-flight RTH and Monte Carlo drivers}\label{sec:i_drivers}
+\section{One mission with a return-to-home policy}\label{sec:i_mission_rth}
 %--------------------------------------------------------------------------------------------------
 
-\todo{Day 5. Describe \texttt{main\_single\_flight.m} (one flight with the four policies) and \texttt{main\_monte\_carlo.m} (how the random factors of Table~\ref{tab:m_mc_factors} are drawn, and how all four policies are given the same random draws). Give the run time if it is notable.}
+\texttt{run\_mission\_rth.m} flies the long route under given conditions and lets one policy decide. Listing~\ref{lst:i_mrth_init} shows the start. Lines 28--35 read the starting SoC from 10 averaged resting readings. Line 37 starts the stage-C filter from that guess with $\sigma_{\text{SoC},0} = 3\%$, and line 38 starts charge counting from the same guess, so policy B is not handicapped by a wrong start. Line 40 initialises the learned cruise current at the nominal 15\,A.
+
+\begin{lstlisting}[caption={Start of a return-to-home mission (\texttt{sim/run\_mission\_rth.m}).},label={lst:i_mrth_init},firstnumber=27]
+% ---- Before takeoff: average 10 resting readings for the starting guess ----
+batt = battery_true_init(c.soc0);
+V_rest = ocv_lookup(c.soc0, p.true.ocv_offset);
+Vm0 = 0;
+for i = 1:10
+    [~, Vm_i] = read_sensors(0, V_rest, p.sens);
+    Vm0 = Vm0 + Vm_i / 10;
+end
+soc_guess0 = soc_from_ocv(Vm0, p.filt.ocv_offset);
+
+f      = ekf_init(p, 'C', soc_guess0, 0.03);     % stage C drives the decision
+soc_cc = soc_guess0;                             % charge counting starts from the same guess
+drone  = drone_init(m);
+I_cr   = m.I_cruise;                             % learned cruise current (as measured)
+\end{lstlisting}
+
+Listing~\ref{lst:i_mrth_step} shows each second of the flight. After the truth, sensors and both estimators (lines 59--62), line 64 updates the learned cruise current \eqref{eq:m_icr}, only while cruising. Line 69 computes $P_{\text{safe}}$ every second, so it can be recorded for plots whatever the policy. Lines 70--79 make the decision, only while the drone is cruising or hovering. Policy B's trip cost is computed on line 73 with no bias correction and the rated capacity. When the policy fires, lines 76--77 switch the drone to the return phase and record the turn-back time; \texttt{drone\_step} then flies it home and lands it (Section~\ref{sec:i_drone}). The mission counts as died if, while current flows, the voltage falls below 3.0\,V or the true SoC reaches zero.
+
+\begin{lstlisting}[caption={Each second: estimators, cruise-current learning and decision (\texttt{sim/run\_mission\_rth.m}).},label={lst:i_mrth_step},firstnumber=59]
+    [batt, V] = battery_true_step(batt, I, p.true, dt);
+    [Im, Vm]  = read_sensors(I, V, p.sens);
+    f         = ekf_step(f, Im, Vm, dt);
+    soc_cc    = coulomb_count(soc_cc, Im, p.filt.Cn, dt);
+    if strcmp(drone.mode, 'cruise')
+        I_cr = 0.98*I_cr + 0.02*Im;              % slowly learn the real cruise current
+    end
+
+    % ---- What the drone knows, and the decision ----
+    dist_home = norm(drone.pos - m.home);
+    [ps, margin, dsoc] = p_safe_return(f, dist_home, I_cr, m, rp);
+    if any(strcmp(drone.mode, {'cruise', 'hover'}))       % decide only while working
+        s.Vm = Vm;  s.low_count = low_count;  s.ps = ps;  s.margin = margin;
+        s.soc_cc  = soc_cc;
+        s.dsoc_cc = trip_soc(dist_home, I_cr, 0, p.filt.Cn, m);   % no bias, label capacity
+        [go_home, low_count] = rth_policy(policy, s, rp);
+        if go_home
+            drone.mode = 'return';  drone.t_in_mode = 0;
+            out.t_rth = k;
+        end
+    end
+\end{lstlisting}
+
+%--------------------------------------------------------------------------------------------------
+\section{Monte Carlo study and threshold sweep}\label{sec:i_drivers}
+%--------------------------------------------------------------------------------------------------
+
+\texttt{draw\_conditions.m} (Listing~\ref{lst:i_draw}) draws the random conditions of one mission, uniformly within the ranges of Table~\ref{tab:m_mc_factors}.
+
+\begin{lstlisting}[caption={Random conditions of one mission (\texttt{sim/draw\_conditions.m}).},label={lst:i_draw},firstnumber=4]
+u = @(a, b) a + (b - a) * rand;
+
+c.soc0  = u(0.60, 1.00);              % starting charge
+c.bias  = u(-1.0, 1.0);               % current-sensor bias (A)
+c.wind  = u(-0.20, 0.20);             % cruise needs -20%..+20% current
+c.Cn    = p.true.Cn * u(0.80, 1.00);  % battery age: 80-100% of rated capacity
+c.R0    = p.true.R0 * u(0.85, 1.15);  % the real battery's parameters vary too
+c.R1    = p.true.R1 * u(0.85, 1.15);
+c.C1    = p.true.C1 * u(0.85, 1.15);
+c.R2    = p.true.R2 * u(0.85, 1.15);
+\end{lstlisting}
+
+\texttt{main\_day5\_rth.m} has three parts. Part~1 flies the demonstration mission with each policy (seed 7). Part~2 is the Monte Carlo study (Listing~\ref{lst:i_mc}): line 109 fixes the seed for drawing the conditions, line 111 draws all 500 conditions once, and line 119 flies every mission with every policy using the same conditions and the same noise seed, $10\,000 + i$. For the policy-D flights, line 121 also stores the estimators' accuracy (stage-C and charge-counting SoC RMSE, and the share of time the truth was inside the stage-C $\pm 3\sigma$ band), which \texttt{run\_mission\_rth} computes at the end of each flight. Part~3 is the threshold sweep, which reruns policies D and A on the first 200 missions with the thresholds of Section~\ref{sec:m_experiments}. The settings used by all parts are on lines 28--32 of the script ($\mathrm{SoC}_{\text{res}} = 10\%$, $f_{\text{trip}} = 0.10$, $p^{\ast} = 0.95$, $V_{\text{thr}} = 3.5$\,V held for 5\,s). A local function computes the scores of Section~\ref{sec:m_scoring}; the script saves four figures and two CSV tables in \texttt{results/day5/}.
+
+\begin{lstlisting}[caption={Monte Carlo loop (\texttt{main\_day5\_rth.m}).},label={lst:i_mc},firstnumber=109]
+rng(2026);
+cond = cell(N_MC, 1);
+for i = 1:N_MC, cond{i} = draw_conditions(p); end
+
+died = false(N_MC, 4);  land = nan(N_MC, 4);  drops = nan(N_MC, 4);
+acc = nan(N_MC, 3);                                  % EKF RMSE, CC RMSE, EKF inside +/-3 sigma (policy D flights)
+fprintf('\n==== Part 2: Monte Carlo, %d missions x 4 policies ====\n', N_MC);
+tic;
+for i = 1:N_MC
+    for j = 1:4
+        o = run_mission_rth(p, m, cond{i}, policies{j}, rp, 10000 + i);   % same noise for every policy
+        died(i,j) = o.died;  land(i,j) = o.soc_land;  drops(i,j) = o.drops;
+        if j == 4, acc(i,:) = [o.rmse_ekf, o.rmse_cc, o.inside]; end
+    end
+    if mod(i, 50) == 0, fprintf('  %d / %d missions (%.0f s)\n', i, N_MC, toc); end
+end
+S = summarise(died, land, drops, rp.reserve);
+\end{lstlisting}

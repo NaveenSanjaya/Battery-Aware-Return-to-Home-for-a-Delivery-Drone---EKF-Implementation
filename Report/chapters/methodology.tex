@@ -51,11 +51,13 @@ Figure~\ref{fig:m_system} shows how the parts connect. The \textbf{simulator} fl
     $\tilde{y}$, $S$, $K$ & Innovation; its variance; Kalman gain & V, V$^2$, mixed \\
     \midrule
     $d_{\text{home}}$, $v_{\text{cruise}}$ & Distance to home; cruise speed & m, m/s \\
-    $t_{\text{home}}$, $t_{\text{land}}$ & Time to get home; landing allowance & s \\
-    $I_{\text{cruise}}$ & Nominal cruise current & A \\
+    $t_{\text{cruise}}$, $t_{\text{land}}$ & Cruise time home; landing time (40\,s) & s \\
+    $\hat{I}_{\text{cr}}$, $I_{\text{land}}$ & Learned cruise current (as measured); landing current & A \\
     $\Delta\mathrm{SoC}_{\text{home}}$, $\mathrm{SoC}_{\text{res}}$ & SoC needed to get home; reserve & fraction \\
     $m$ & Safety margin & fraction \\
     $\sigma_{\text{SoC}}$, $\sigma_{\text{trip}}$, $\sigma_{\text{total}}$ & SoC, trip and total standard deviations & fraction \\
+    $f_{\text{trip}}$ & Trip uncertainty as a fraction of the trip cost (0.10) & -- \\
+    $V_{\text{thr}}$ & Voltage threshold of policy A (3.5\,V) & V \\
     $P_{\text{safe}}$, $p^{\ast}$ & Probability of a safe return; its threshold & -- \\
     $\Phi(\cdot)$ & Standard normal CDF & -- \\
     \bottomrule
@@ -493,21 +495,28 @@ The NEES is computed on the SoC alone, $\epsilon_{\text{NEES},k} = e_{\text{SoC}
 \section{Risk-aware return-to-home rule}\label{sec:m_rth}
 %--------------------------------------------------------------------------------------------------
 
-Every second, the drone computes the probability that it can still reach home with a safety reserve. When this probability drops below a threshold $p^{\ast} = 95\%$, it turns back. The SoC estimate and its uncertainty come from the stage-C filter (Section~\ref{sec:m_ekf_choice}).
+Every second, the drone computes the probability that it can still reach home with a safety reserve. When this probability drops below a threshold $p^{\ast} = 95\%$, it turns back. The SoC estimate and its uncertainty come from the stage-C filter (Section~\ref{sec:m_ekf_choice}). The rule is tested on the \emph{long} route (six drop-offs, Section~\ref{sec:m_mission}), which is too far for one battery, so every mission needs a turn-back decision.
 
 \subsection{What getting home costs}\label{sec:m_rth_cost}
 
-The time to get home is the straight-line flight time plus an allowance $t_{\text{land}} = 40$\,s for landing, equal to the landing phase of the simulator:
+The drone flies home in a straight line at $v_{\text{cruise}} = 10$\,m/s and then lands, which takes $t_{\text{land}} = 40$\,s at $I_{\text{land}} = 18$\,A (the landing phase of the simulator). The cruise time home is
 \begin{equation}
-  t_{\text{home},k} = \frac{d_{\text{home},k}}{v_{\text{cruise}}} + t_{\text{land}} .
+  t_{\text{cruise},k} = \frac{d_{\text{home},k}}{v_{\text{cruise}}} .
   \label{eq:m_thome}
 \end{equation}
-The SoC this trip needs, at the nominal cruise current $I_{\text{cruise}} = 15$\,A and the estimated capacity, is
+The charge this needs is computed with the same drain rate that the filter uses, $(I_m - \hat{b})/\hat{C}_n$. Day~4 showed that this combination is what the voltage makes observable, while $\hat{b}$ and $\hat{C}_n$ separately are not reliable (Section~\ref{sec:m_ekf_choice}, Equation~\eqref{eq:m_rate}). Using $\hat{C}_n$ on its own with a nominal current could misjudge the trip for an aged battery. The SoC needed to get home is therefore
 \begin{equation}
-  \Delta\mathrm{SoC}_{\text{home},k} = \frac{I_{\text{cruise}}\, t_{\text{home},k}}{3600\, \hat{C}_{n,k}} .
+  \Delta\mathrm{SoC}_{\text{home},k} = \frac{\left(\hat{I}_{\text{cr},k} - \hat{b}_k\right) t_{\text{cruise},k} + I_{\text{land}}\, t_{\text{land}}}{3600\, \hat{C}_{n,k}} ,
   \label{eq:m_dsoc_home}
 \end{equation}
-A reserve of $\mathrm{SoC}_{\text{res}} = 10\%$ is always kept for landing safety. For example, at 3.2\,km from home and 10\,m/s, $t_{\text{home}} = 320 + 40 = 360$\,s; at 15\,A this uses 1.5\,Ah, which is 30\% of a 5\,Ah battery.
+where $\hat{I}_{\text{cr},k}$ is the cruise current \emph{as the sensor measures it}, learned during the flight with an exponential moving average that is updated only in cruise:
+\begin{equation}
+  \hat{I}_{\text{cr},k} = 0.98\, \hat{I}_{\text{cr},k-1} + 0.02\, I_{m,k}, \qquad \hat{I}_{\text{cr},0} = 15\text{\,A}.
+  \label{eq:m_icr}
+\end{equation}
+The weight of 0.02 per second gives a memory of about 50\,s. The learned current therefore includes the effect of the wind and the sensor bias, which the filter's $\hat{b}$ then removes, just as in the process model \eqref{eq:m_f_soc}. The two terms are treated differently on purpose: $\hat{I}_{\text{cr}}$ is a measured current, so the estimated bias is removed from it, while $I_{\text{land}}$ is the nominal true landing current, which contains no sensor bias and is used as it is.
+
+A reserve of $\mathrm{SoC}_{\text{res}} = 10\%$ is always kept for landing safety. For example, with no bias and a 5\,Ah battery, at 3.2\,km from home the drone needs $(15\text{\,A} \times 320\text{\,s} + 18\text{\,A} \times 40\text{\,s})/3600 \approx 1.53$\,Ah, about 31\% SoC.
 
 \subsection{From margin to probability}\label{sec:m_rth_prob}
 
@@ -516,30 +525,30 @@ The \emph{safety margin} is the charge left over after the trip home and the res
   m_k = \widehat{\mathrm{SoC}}_k - \Delta\mathrm{SoC}_{\text{home},k} - \mathrm{SoC}_{\text{res}} .
   \label{eq:m_margin}
 \end{equation}
-The margin is uncertain for two reasons: the SoC estimate itself, with standard deviation $\sigma_{\text{SoC},k} = \sqrt{P_{k,11}}$ taken straight from the EKF covariance, and surprises on the trip home such as wind, with standard deviation $\sigma_{\text{trip}}$. Treating them as independent and Gaussian, they combine into the total standard deviation \eqref{eq:m_sigma_total}, which converts the margin into a probability \eqref{eq:m_psafe}:
+The margin is uncertain for two reasons. The first is the SoC estimate itself, with standard deviation $\sigma_{\text{SoC},k} = \sqrt{P_{k,11}}$ taken straight from the EKF covariance. The second is surprises on the trip home, such as a change in wind or load. These grow with the length of the trip, so their standard deviation is taken as a fixed fraction of the trip cost, $\sigma_{\text{trip},k} = f_{\text{trip}}\, \Delta\mathrm{SoC}_{\text{home},k}$ with $f_{\text{trip}} = 0.10$. For comparison, a wind effect spread uniformly over $\pm 20\%$ (Table~\ref{tab:m_mc_factors}) has a standard deviation of $0.2/\sqrt{3} \approx 11.5\%$, so 10\% is of the same order; the learned cruise current \eqref{eq:m_icr} already absorbs part of the wind. Treating the two sources as independent and Gaussian, they combine into the total standard deviation \eqref{eq:m_sigma_total}, which converts the margin into a probability \eqref{eq:m_psafe}:
 \begin{align}
-  \sigma_{\text{total},k} &= \sqrt{\sigma_{\text{SoC},k}^2 + \sigma_{\text{trip}}^2}, \label{eq:m_sigma_total}\\
+  \sigma_{\text{total},k} &= \sqrt{\sigma_{\text{SoC},k}^2 + \left(f_{\text{trip}}\, \Delta\mathrm{SoC}_{\text{home},k}\right)^2}, \label{eq:m_sigma_total}\\
   P_{\text{safe},k} &= \Phi\!\left(\frac{m_k}{\sigma_{\text{total},k}}\right), \qquad
   \Phi(z) = \tfrac{1}{2}\,\mathrm{erfc}\!\left(-\frac{z}{\sqrt{2}}\right). \label{eq:m_psafe}
 \end{align}
 $\Phi$ is the standard normal cumulative distribution function, written with the complementary error function $\mathrm{erfc}$ so that it needs only base MATLAB. The drone returns home at the first step where $P_{\text{safe},k} < p^{\ast}$.
 
-For $p^{\ast} = 0.95$, $\Phi(1.645) = 0.95$, so the rule is the same as ``return when $m_k < 1.645\,\sigma_{\text{total},k}$''. It keeps a safety buffer of 1.645 standard deviations. When the filter is confident the buffer is small and the drone flies longer; when it is unsure the buffer grows automatically and the drone turns back earlier. Table~\ref{tab:m_rth_example} shows this with two filters that give the same estimate but different uncertainties.
+For $p^{\ast} = 0.95$, $\Phi(1.645) = 0.95$, so the rule is the same as ``return when $m_k < 1.645\,\sigma_{\text{total},k}$''. It keeps a safety buffer of 1.645 standard deviations. When the filter is confident the buffer is small and the drone flies longer; when it is unsure the buffer grows automatically and the drone turns back earlier. Table~\ref{tab:m_rth_example} illustrates this with two filters that give the same estimate but different uncertainties.
 
 \begin{table}[htbp]
   \centering
-  \caption{Same estimate, different confidence, different decision ($\sigma_{\text{trip}} = 2\%$).}
+  \caption[Same estimate, different confidence, different decision.]{Same estimate, different confidence, different decision (illustrative numbers; $f_{\text{trip}} = 0.10$, so $\sigma_{\text{trip}} = 3\%$ for a 30\% trip).}
   \label{tab:m_rth_example}
   \begin{tabular}{@{}lcc@{}}
     \toprule
     Quantity & Confident filter & Unsure filter \\
     \midrule
-    SoC estimate & 45\% & 45\% \\
-    $\sigma_{\text{SoC}}$ from the EKF & 1\% & 3\% \\
+    SoC estimate & 47\% & 47\% \\
+    $\sigma_{\text{SoC}}$ from the EKF & 1\% & 4\% \\
     Trip home + reserve & 30\% + 10\% & 30\% + 10\% \\
-    Margin $m$ & 5\% & 5\% \\
-    $\sigma_{\text{total}}$ & 2.2\% & 3.6\% \\
-    $P_{\text{safe}}$ & 98.7\% & 91.7\% \\
+    Margin $m$ & 7\% & 7\% \\
+    $\sigma_{\text{total}}$ & 3.2\% & 5.0\% \\
+    $P_{\text{safe}}$ & 98.7\% & 91.9\% \\
     Decision & Continue & Return home \\
     \bottomrule
   \end{tabular}
@@ -547,41 +556,45 @@ For $p^{\ast} = 0.95$, $\Phi(1.645) = 0.95$, so the rule is the same as ``return
 
 A rule that used only the estimate would treat both cases the same. The risk-aware rule does not, and that is the reason for estimating the uncertainty at all.
 
-The rule rests on stated assumptions: a straight flight home, a constant cruise current, and Gaussian errors. The capacity estimate in \eqref{eq:m_dsoc_home} is also treated as exact; its uncertainty is not included in $\sigma_{\text{total}}$. Because stage~C's capacity estimate is not reliable on its own (only the rate \eqref{eq:m_rate} is), the trip cost may be better computed from the filter's estimated discharge rate at the measured cruise current, $(I_{m,\text{cruise}} - \hat{b})/\hat{C}_n$, than from $I_{\text{cruise}}/\hat{C}_n$.
-% TODO: decide how p_safe_return.m computes the trip cost (nominal Cn, estimated Cn, or the estimated rate).
-% TODO: fix the final value of sigma_trip once p_safe_return.m exists.
+\textbf{What the threshold promises.} If $\sigma_{\text{total}}$ is honest, $P_{\text{safe}} \geq p^{\ast}$ at the moment of turning back means that the drone should land with the reserve intact in at least a fraction $p^{\ast}$ of missions. The share of missions that break the reserve should therefore be at most $1 - p^{\ast}$, for example 5\% for $p^{\ast} = 0.95$. This gives a direct test of the whole chain (filter, trip cost and probability) in the Monte Carlo study. A design-stage check in the Python port suggested that this promise holds: at every threshold tried, the share of missions that broke the reserve stayed at or below $1 - p^{\ast}$.
+
+The rule rests on stated assumptions: a straight flight home, a cruise current that stays at its learned value, and Gaussian errors. The uncertainty of the drain rate itself (through $\hat{b}$ and $\hat{C}_n$) is not added to $\sigma_{\text{total}}$; only the SoC uncertainty and the trip allowance are.
 
 \subsection{The four policies compared}\label{sec:m_policies}
 
-Four turn-back policies will be compared on the same missions (Table~\ref{tab:m_policies}). Policies A and B are baselines that a simple drone could use; C and D both use the EKF, and differ only in whether they use its uncertainty.
+Four turn-back policies are compared on the same missions (Table~\ref{tab:m_policies}). Policies A and B are baselines that a simple drone could use; C and D both use the stage-C EKF, and differ only in whether they use its uncertainty. All policies are checked only while the drone is working (cruising or hovering at a drop-off), not during take-off or once it is already returning. When a policy fires, the drone abandons the remaining deliveries, flies straight home and lands.
 
 \begin{table}[htbp]
   \centering
-  \caption{Return-to-home policies.}
+  \caption{Return-to-home policies (\texttt{decision/rth\_policy.m}).}
   \label{tab:m_policies}
-  \begin{tabular}{@{}p{0.22\textwidth}p{0.38\textwidth}p{0.32\textwidth}@{}}
+  \small
+  \begin{tabular}{@{}p{0.2\textwidth}p{0.42\textwidth}p{0.3\textwidth}@{}}
     \toprule
     Policy & Rule & Expected weakness \\
     \midrule
-    A. Voltage threshold & Return when the measured cell voltage stays below 3.6\,V for 5\,s & Fooled by sag; ignores the distance from home \\
-    B. Charge counting & Margin rule \eqref{eq:m_margin} with SoC from charge counting, assuming a full, new battery & Drifts with bias, a wrong start or an aged battery \\
-    C. EKF estimate only & Return when $m_k < 0$, using stage C & Turns back too late when the filter is unsure \\
-    D. EKF risk-aware & Return when $P_{\text{safe},k} < 95\%$, using stage C & Expected best: rarely fails, wastes little \\
+    A. Voltage threshold & Return when the measured cell voltage stays below $V_{\text{thr}} = 3.5$\,V for 5 consecutive seconds & Fooled by sag; ignores the distance from home; no single threshold suits all missions \\
+    B. Charge counting & Return when $\mathrm{SoC}_{\text{cc}} - \Delta\mathrm{SoC}_{\text{home}} - \mathrm{SoC}_{\text{res}} < 0$, with SoC from charge counting (starting from the same resting-voltage guess) and a trip cost \eqref{eq:m_dsoc_home} with rated capacity (5\,Ah) and no bias correction & Drifts with sensor bias; optimistic for an aged battery \\
+    C. EKF estimate only & Return when $m_k < 0$ & Lands right at the reserve on average, so breaks it often \\
+    D. EKF risk-aware & Return when $P_{\text{safe},k} < p^{\ast} = 95\%$ & Expected best: rarely breaks the reserve, wastes a little \\
     \bottomrule
   \end{tabular}
 \end{table}
 
+The voltage threshold of policy A was set to 3.5\,V after a design-stage check in the Python port (60 missions). With 3.4\,V the battery died in 92\% of missions, with 3.5\,V in 10\%, and with 3.6\,V in none, but then 27\% of the battery was left unused. No fixed voltage is both safe and efficient, because the voltage at which the drone must turn back depends on how far from home it is and on the battery's state. Policy A is also swept over 3.40--3.60\,V in the threshold sweep.
+
 \subsection{How a mission is scored}\label{sec:m_scoring}
 
-After a policy decides to turn back, the simulator flies the drone home on the true battery. Each mission is then scored on three measures.
+After a policy decides to turn back, the simulator flies the drone home on the true battery. Each mission is then scored on four measures.
 \begin{itemize}
-  \item \textbf{Failure:} the true battery empties, or the cell voltage under load falls below 3.0\,V, before landing.
-  \item \textbf{Unused battery:} the true SoC at landing minus the 10\% reserve. Lower is better, provided the mission did not fail.
-  \item \textbf{Work done:} the distance flown before turning back.
+  \item \textbf{Died:} the cell voltage under load fell below 3.0\,V, or the true SoC reached zero, before landing.
+  \item \textbf{Reserve broken:} the drone died, or landed with less than the 10\% reserve. This is the event that policy D promises to avoid with probability $p^{\ast}$.
+  \item \textbf{Unused battery:} the true SoC at landing minus the 10\% reserve, averaged over the missions that landed (it is negative for a mission that landed below the reserve). Lower means the battery was used better, provided the reserve was kept.
+  \item \textbf{Deliveries:} the number of drop-offs completed before turning back.
 \end{itemize}
 
 %--------------------------------------------------------------------------------------------------
-\section{Planned experiments}\label{sec:m_experiments}
+\section{Experiments}\label{sec:m_experiments}
 %--------------------------------------------------------------------------------------------------
 
 Eight experiments build understanding of the filter (Table~\ref{tab:m_experiments}). All use the short mission. Single runs use random seed~2. In E3--E8 the starting SoC is read from 10 averaged resting readings (E1 and E2 were first run with a single reading). E8 repeats five scenarios over 20 seeds. A Monte Carlo study of 500 random missions then compares the four RTH policies, and a threshold sweep shows the safety-versus-range trade-off.
@@ -607,11 +620,11 @@ Eight experiments build understanding of the filter (Table~\ref{tab:m_experiment
   \end{tabular}
 \end{table}
 
-In the Monte Carlo study, all four policies fly the same 500 missions with the same random draws, so the comparison is fair. Each mission draws the random factors in Table~\ref{tab:m_mc_factors}. The study reports, for each policy, the failure rate, the mean unused battery and the mean distance flown; and, for the estimators, the SoC root-mean-square error (RMSE) and the mean NEES and NIS.
+\textbf{Monte Carlo study.} The four policies are compared on 500 random missions on the long route. The random conditions of each mission are drawn once, uniformly within the ranges of Table~\ref{tab:m_mc_factors}, and every policy flies exactly the same conditions with exactly the same sensor noise (seed $10\,000 + i$ for mission $i$), so the differences come from the policies alone. Before take-off the starting SoC is read from 10 averaged resting readings, and both the stage-C EKF and charge counting start from that guess. For each policy the study reports the share of missions in which the battery died, the share in which the reserve was broken, the mean unused battery and the mean number of deliveries (Section~\ref{sec:m_scoring}), and the share of deaths among aged batteries (capacity below 90\%).
 
 \begin{table}[htbp]
   \centering
-  \caption{Random factors drawn for each Monte Carlo mission.}
+  \caption{Random conditions drawn for each Monte Carlo mission (\texttt{sim/draw\_conditions.m}), uniformly within each range.}
   \label{tab:m_mc_factors}
   \begin{tabular}{@{}ll@{}}
     \toprule
@@ -619,14 +632,16 @@ In the Monte Carlo study, all four policies fly the same 500 missions with the s
     \midrule
     Starting SoC & 60\% to 100\% \\
     Current-sensor bias & $-1$\,A to $+1$\,A \\
-    Battery age (true capacity) & 80\% to 100\% of rated \\
-    Wind (change in cruise current) & $\pm 20\%$ \\
-    Truth-model parameters & $\pm 15\%$ \\
-    Sensor noise & New samples every flight \\
+    Wind (change in cruise current, same both ways) & $-20\%$ to $+20\%$ \\
+    Battery age (true capacity) & 80\% to 100\% of 5\,Ah \\
+    True $R_0$, $R_1$, $C_1$, $R_2$ & Each $\times 0.85$ to $\times 1.15$ of its default true value \\
+    Sensor noise & Own random seed per mission, shared by all policies \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-The working hypothesis is that policy D gives close to zero failures with little unused battery; that C fails occasionally; that B fails when the battery is not full or is aged; and that A wastes battery yet still fails sometimes. If the results differ, they will be reported and explained.
+The working hypothesis is that policy D breaks the reserve in no more than about 5\% of missions while wasting little battery; that C, which aims exactly at the reserve, breaks it often; that B dies when the battery is aged or the sensor reads low; and that A either wastes battery or dies, depending on its threshold. If the results differ, they will be reported and explained.
 
-Finally, the \textbf{threshold sweep} reruns policy D with $p^{\ast}$ set to 80\%, 90\%, 95\%, 99\% and 99.9\%. Plotting the failure rate against the unused battery gives a trade-off curve that shows an operator what each extra ``nine'' of safety costs in range.
+\textbf{Threshold sweep.} On the first 200 missions, policy D is rerun with $p^{\ast} =$ 80\%, 90\%, 95\%, 99\% and 99.9\%, and policy A with $V_{\text{thr}} =$ 3.40, 3.45, 3.50, 3.55 and 3.60\,V. Plotting the share of missions that broke the reserve against the mean unused battery gives a trade-off curve for each policy (bottom-left is best). It shows an operator what each extra ``nine'' of safety costs in range, and whether any voltage threshold can match the risk-aware rule.
+
+\textbf{Demonstration mission.} Before the Monte Carlo study, one mission is flown with all four policies under deliberately difficult conditions: start at 95\%, an aged battery (85\% capacity), a current sensor reading 0.5\,A low, and a 10\% headwind. It shows how each policy decides on a single flight.

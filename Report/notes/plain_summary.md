@@ -2,7 +2,7 @@
 
 This is a study aid, not part of the report. For each chapter written so far, it says in simple words what the chapter says and why it matters. It then gives a few questions an examiner might ask, with short answers.
 
-Chapter 5 after E8 (the return-home results), and Chapters 6 and 7, are still skeletons. They will be added here when they are written.
+The return-home results in Chapter 5 (waiting for the Day 5 MATLAB run), and Chapters 6 and 7, are still skeletons. They will be added here when they are written.
 
 ---
 
@@ -73,7 +73,15 @@ Chapter 5 after E8 (the return-home results), and Chapters 6 and 7, are still sk
 - **Why not bias and capacity?** In one 14-minute flight, the filter cannot tell them apart from R0. When the current is steady, a bias error and a resistance error change the voltage in the same way. Capacity only shows as slow SoC drift. Stage C is kept as an "observability study", and learning b and Cn over many flights is future work.
 - **Measurement noise R has three parts:** sensor noise (10 mV), current noise through R0 (1.6 mV), and a **10 mV model-error allowance**. With 10 mV, the truth was inside the band 98% of the time (NIS about 0.5: a little too cautious, but honest). Honest bands matter because the return-home rule uses σ.
 - **Q is derived, not guessed:** the current-sensor noise is pushed through the model with a vector G. The covariance update uses the **Joseph form**, which keeps P symmetric and positive.
-- **Return-home rule:** margin m = SoC estimate − SoC needed to get home − 10% reserve. Getting home takes the flight time plus 40 s to land. The margin becomes a probability of a safe return using the bell curve. Go home when it falls below 95%. Four policies (A–D) will be compared, plus 8 experiments and a 500-flight Monte Carlo study.
+- **Return-home rule (Day 5 final version):**
+  - *Cost of getting home:* (cruise current − bias) × time home, plus (landing current − bias) × 40 s, all divided by the capacity. This uses the same "drain rate" the filter learned, (current − bias)/capacity, because Day 4 showed that is the part the filter gets right. The cruise current is learned during the flight from the sensor (a slow average), so it includes wind.
+  - *Margin:* m = SoC estimate − cost of getting home − 10% reserve.
+  - *Uncertainty:* the SoC σ from the EKF, plus a trip allowance of 10% of the trip cost (for wind and load surprises). Longer trip, more allowance.
+  - *Probability:* P(safe) = bell-curve probability that the margin is above zero. **Go home when P(safe) < 95%.** That is the same as keeping a buffer of 1.645 σ.
+- **What 95% promises:** if the σ is honest, the drone should break its reserve in no more than about 5% of missions. The Monte Carlo study checks this. That makes it a test of the whole chain (filter + cost + probability).
+- **Four policies:** A = turn back when voltage < 3.5 V for 5 s; B = charge counting margin (rated 5 Ah, no bias correction, same resting-voltage start); C = EKF margin < 0 (ignores σ); D = P(safe) < 95%. Decisions are only checked while cruising or hovering. When a policy fires, the drone flies straight home.
+- **Why 3.5 V for A?** A Python check: 3.4 V killed 92% of drones, 3.5 V 10%, 3.6 V none but wasted 27% of the battery. No single voltage works, because the right moment depends on how far from home you are.
+- **Monte Carlo:** 500 missions on the long route (6 drops, too far for one battery). Each mission draws random start SoC (60–100%), bias (±1 A), wind (±20%), battery age (80–100%) and battery parameters (±15%). All four policies fly *the same* missions with *the same* noise. Scores: died, reserve broken, unused battery, deliveries. Then a threshold sweep: D at 80–99.9%, A at 3.40–3.60 V.
 - **Choosing the decision filter (Python design check, 20 flights each).** On a healthy battery, B is the most accurate (about 1.1% error). But on an **aged battery** (only 85% capacity), B is confidently wrong: it thinks the battery is about 8% fuller than it is, and its band holds the truth only 27% of the time. That is the dangerous direction, because the drone would turn back too late. B blames the missing voltage on a higher R0 instead of a lower SoC. Stage C stayed honest (truth inside its band 100% of the time) in E1–E4, with 1.0–1.8% error. So **stage C will drive the go-home decision.** Lesson: *the most accurate filter is not always the safest one to make decisions with.*
 - **Stage C's bias and capacity are individually wrong, but the SoC is right.** In the aged-battery test it guessed capacity 4.49 Ah (true 4.25) and bias −0.80 A (true +0.5). These errors cancel: what matters for SoC is the discharge rate (Im − b)/Cn, and that was only about 3% off. The voltage can check the rate, but not the two parts separately, within one flight.
 - **Better starting guess:** from Day 4, the drone averages 10 resting voltage readings before take-off. This cuts the noise by about 3×, which fixes the "unlucky 3% low start" from Day 3.
@@ -98,6 +106,10 @@ Chapter 5 after E8 (the return-home results), and Chapters 6 and 7, are still sk
    Because on an aged battery it is confidently wrong, and wrong in the dangerous direction (it overestimates SoC). The go-home rule trusts the filter's σ, so an honest σ matters more than the last half-percent of accuracy.
 7. *Stage C's bias estimate was wrong. How can its SoC be right?*
    The SoC only depends on the bias and capacity through the rate (Im − b)/Cn. Stage C got the rate nearly right, even though it split it wrongly between bias and capacity. Calibrating the bias at rest before take-off would fix the split.
+8. *Why does the trip cost use (current − bias)/capacity and not just the capacity estimate?*
+   Because the filter only gets that combination right; its capacity alone can be off (4.45 vs 4.25 Ah in E4). Using the same combination the filter uses keeps the cost consistent with what the voltage has checked.
+9. *Why is policy D called "calibrated"?*
+   Its threshold is a promise: at 95%, it should break the reserve in at most about 5% of missions. If the Monte Carlo shows that, the filter's σ and the trip allowance are honest. Policy C ignores σ and aims exactly at the reserve, so it should break it much more often.
 
 ---
 
@@ -115,7 +127,8 @@ Chapter 5 after E8 (the return-home results), and Chapters 6 and 7, are still sk
 - `run_flight.m` now has options: `n_rest` (how many resting readings to average) and `q_scale`/`r_scale` (to turn the Q and R knobs in E5).
 - `flight_metrics.m` turns one flight into numbers: error (RMSE, final, max), how often the truth was inside the band, NIS, and NEES on SoC (should be about 1).
 - `main_day4_experiments.m` runs E3–E8. E8 alone is 300 flights (5 scenarios × 20 seeds × 3 stages). `ocv_lookup.m` now builds its curve once and reuses it, which is much faster but gives exactly the same numbers.
-- The decision-rule and Monte Carlo sections are still TODO.
+- `trip_soc.m` (cost to get home), `p_safe_return.m` (margin → probability with `erfc`) and `rth_policy.m` (the four rules, each a few lines). Policy A counts seconds below the threshold, so one noisy dip cannot send the drone home.
+- `run_mission_rth.m` flies one long mission: 10 resting readings for the start, stage C EKF and charge counting always running, the cruise current learned while cruising, and the decision every second. `draw_conditions.m` draws one mission's random conditions. `main_day5_rth.m` runs the demo mission, the 500-mission Monte Carlo and the threshold sweep.
 
 **Why it matters:** it shows the equations really are what the code does. That is part of the "correctness" mark.
 

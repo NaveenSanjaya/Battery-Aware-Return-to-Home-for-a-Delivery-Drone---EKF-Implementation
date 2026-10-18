@@ -72,7 +72,7 @@ Figure~\ref{fig:r_voltage} shows the voltages and the true SoC. The true SoC fal
 
 \textbf{Safety.} The lowest cell voltage, 3.297\,V near the end of the flight, stays about 0.3\,V above the 3.0\,V cut-off, and the drone landed with 18.5\% SoC. The short mission is therefore safe, as intended, and leaves the long mission to test the RTH rule.
 
-The figure also hints at the weakness of policy A (Table~\ref{tab:m_policies}). From around the second drop-off onwards, the loaded voltage is near or below the 3.6\,V threshold, while the true SoC is still above one half. A voltage-threshold rule would have turned back with much of the battery unused.
+The figure also hints at the weakness of policy A (Table~\ref{tab:m_policies}). From around the second drop-off onwards, the loaded voltage is near or below 3.6\,V (the threshold first planned for policy A), while the true SoC is still above one half. A voltage-threshold rule at that level would have turned back with much of the battery unused. This is one reason the final policy A uses 3.5\,V and is swept over a range of thresholds (Section~\ref{sec:m_policies}).
 % TODO (student): confirm the time at which V first stays below 3.6 V for 5 s, and the true SoC at that moment, from results/day2/day2_log.mat.
 
 \begin{figure}[htbp]
@@ -365,7 +365,6 @@ E8 flew each of five scenarios with 20 seeds and all three stages, 300 flights i
   \end{tabular}
 \end{table}
 
-% TODO: replace with re-run figure (the current PNG uses different bar colours in the two panels, and its legend hides the E1 stage-A bar).
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{day4_e8_summary.png}
@@ -388,34 +387,40 @@ The 20-flight averages confirm the single runs and the design-stage checks of Ta
 \section{Return-to-home decisions on a single flight}\label{sec:r_single_rth}
 %--------------------------------------------------------------------------------------------------
 
-\todo{Long mission. Figure: $P_{\text{safe}}$ over time, with the turn-back moment of each policy marked. Figure: map showing where each policy turned back. Table: for each policy, turn-back time, distance flown, true SoC at landing, and whether the mission failed. Explain each policy's decision.}
+% Design-stage check (Python), for comparison only: B died after attempting a 2nd delivery; A and C landed at about 10-11% (right on the reserve); D landed at about 17.5%.
+\todo{Day 5 (\texttt{main\_day5\_rth.m}, Part 1). Demonstration mission on the long route: start 95\%, battery at 85\% capacity, sensor bias $-0.5$\,A, headwind $+10\%$, seed 7. Figure \texttt{fig\_demo\_decision.png}: $P_{\text{safe}}$ over time with each policy's turn-back time; stage-C SoC estimate with $\pm 3\sigma$ against the ``needed to get home + reserve'' curve; true SoC under each policy. Figure \texttt{fig\_demo\_map.png}: turn-back points on the map. Table: for each policy, turn-back time, deliveries, true SoC at landing, died or safe. Explain each decision (why B is optimistic with a low-reading sensor and an aged battery; why C lands at the reserve; why D keeps a margin).}
 
 %--------------------------------------------------------------------------------------------------
 \section{Monte Carlo study}\label{sec:r_mc}
 %--------------------------------------------------------------------------------------------------
 
-\todo{500 missions with the random factors of Table~\ref{tab:m_mc_factors}, the same draws for every policy. Fill Table~\ref{tab:r_mc} and add a figure of failure rate and unused battery per policy. Compare the outcome with the hypothesis in Section~\ref{sec:m_experiments}, and explain any differences.}
+% Design-stage check (Python, 200 missions), died / reserve broken / unused / deliveries:
+% B 40% / 92% / - / 1.56;  C 0% / 39.5% / 0.4% / 1.34;  D(0.95) 0% / 4.5% / 5.9% / 1.20.
+\todo{Day 5, Part 2. 500 missions with the conditions of Table~\ref{tab:m_mc_factors}, the same conditions and noise for every policy. Fill Table~\ref{tab:r_mc} from \texttt{monte\_carlo\_summary.csv}, add \texttt{fig\_monte\_carlo.png}, and report the died \% for aged batteries (capacity $< 90\%$). Check the calibration promise of Section~\ref{sec:m_rth_prob}: did policy D break the reserve in at most about 5\% of missions? Compare with the hypothesis in Section~\ref{sec:m_experiments}. When discussing deliveries, note that a drop counts only once its hover is finished, so a turn-back during a hover does not count that drop.}
 
 \begin{table}[htbp]
   \centering
-  \caption[Monte Carlo results over 500 missions.]{Monte Carlo results over 500 missions. \textbf{TODO:} fill in from \texttt{main\_monte\_carlo.m}.}
+  \caption[Monte Carlo results over 500 missions.]{Monte Carlo results over 500 missions. \textbf{TODO:} fill in from \texttt{monte\_carlo\_summary.csv}.}
   \label{tab:r_mc}
-  \begin{tabular}{@{}lccc@{}}
+  \small
+  \begin{tabular}{@{}lcccc@{}}
     \toprule
-    Policy & Failure rate (\%) & Mean unused battery (\%) & Mean distance flown (km) \\
+    Policy & Died & Reserve broken & Unused battery & Deliveries \\
     \midrule
-    A. Voltage threshold & -- & -- & -- \\
-    B. Charge counting & -- & -- & -- \\
-    C. EKF estimate only & -- & -- & -- \\
-    D. EKF risk-aware & -- & -- & -- \\
+    A. Voltage threshold & -- & -- & -- & -- \\
+    B. Charge counting & -- & -- & -- & -- \\
+    C. EKF estimate only & -- & -- & -- & -- \\
+    D. EKF risk-aware & -- & -- & -- & -- \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\todo{Also report the SoC RMSE of the EKF and of charge counting, and the mean NEES and NIS over all missions.}
+\textbf{Estimator accuracy over the Monte Carlo missions.} \todo{From the policy-D flights (array \texttt{acc} in \texttt{main\_day5\_rth.m}): mean SoC RMSE of the stage-C EKF and of charge counting, and the mean share of time the truth was inside the stage-C $\pm 3\sigma$ band, over all 500 missions. Compare with E8 (Table~\ref{tab:r_e8}); these missions are longer and include random battery parameters.}
 
 %--------------------------------------------------------------------------------------------------
 \section{Risk-threshold sweep}\label{sec:r_sweep}
 %--------------------------------------------------------------------------------------------------
 
-\todo{Policy D with $p^{\ast} =$ 80\%, 90\%, 95\%, 99\% and 99.9\%. Figure: failure rate against mean unused battery, one point per threshold. State what each extra ``nine'' of safety costs in unused battery.}
+% Design-stage check (Python, 200 missions), D reserve broken / unused: 0.80: 12% / 3.3%; 0.90: 6.5% / 4.7%; 0.95: 4.5% / 5.9%; 0.99: 1.5% / 8.0%.
+% Policy A (60 missions): 3.4 / 3.5 / 3.6 V -> died 92% / 10% / 0%, with 27% unused at 3.6 V.
+\todo{Day 5, Part 3. First 200 missions. Policy D with $p^{\ast} =$ 80\%, 90\%, 95\%, 99\%, 99.9\%; policy A with $V_{\text{thr}} =$ 3.40--3.60\,V. Figure \texttt{fig\_tradeoff.png}: reserve broken against unused battery, with B and C as single points. Table from \texttt{threshold\_sweep.csv}. For D, compare each breach rate with its promise $1 - p^{\ast}$; state what each extra ``nine'' costs in unused battery and deliveries; show whether any voltage threshold reaches D's curve.}

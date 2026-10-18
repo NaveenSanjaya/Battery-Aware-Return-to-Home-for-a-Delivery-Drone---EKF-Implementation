@@ -50,7 +50,7 @@ Notes from Day 4 (MATLAB results, to expand):
 \end{itemize}
 
 \section{Value of uncertainty in the return-to-home decision}\label{sec:d_value_uncertainty}
-\todo{Use the single-flight and Monte Carlo results: compare policies C and D, which share the same estimate and differ only in using $\sigma_{\text{SoC}}$; explain each policy's failures and wasted battery; discuss the threshold-sweep trade-off and how an operator would choose $p^{\ast}$.}
+\todo{Use the demo mission, the Monte Carlo study and the threshold sweep: compare policies C and D, which share the same estimate and differ only in using the uncertainty (C aims exactly at the reserve, so it should break it about half the time if its estimate is unbiased); check whether D's breach rate stays at or below $1 - p^{\ast}$ (calibration), which tests the honesty of the whole chain from filter to probability; explain B's deaths (sensor bias and aged batteries make it optimistic) and why no fixed voltage threshold works for A; discuss how an operator would choose $p^{\ast}$ from the trade-off curve. Also note why the trip cost uses the observable drain rate $(\hat{I}_{\text{cr}} - \hat{b})/\hat{C}_n$ and not $\hat{C}_n$ alone.}
 
 \section{Limitations}\label{sec:d_limitations}
 \todo{Discuss each limitation openly, and link it to the results where possible:}
