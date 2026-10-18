@@ -17,7 +17,8 @@ Chapter 5 after E2, and Chapters 6 and 7, are still skeletons. They will be adde
 - The best safety margin is not a fixed one. It should be small when we are sure about the SoC and big when we are not. So we need an estimator that also says how sure it is.
 - A Kalman filter gives both a best guess and its uncertainty. The battery's voltage curve is bent, so we use the **Extended** Kalman Filter (EKF), which handles gently bent equations.
 - The project builds a simulator, an EKF, a risk-aware return-home rule, and compares them with simpler methods.
-- The main filter also **learns the battery's internal resistance R0** during the flight. Testing showed that a wrong R0 was the biggest cause of SoC error (see Chapter 3).
+- The filter also **learns the battery's internal resistance R0** during the flight. Testing showed that a wrong R0 was the biggest cause of SoC error (see Chapter 3).
+- The filter that makes the go-home decision is chosen for **honest uncertainty**, not just accuracy (see Chapter 3).
 
 **Why it matters:** it explains the problem and why an EKF is the right tool. This sets up everything else.
 
@@ -67,12 +68,16 @@ Chapter 5 after E2, and Chapters 6 and 7, are still skeletons. They will be adde
 - **The slow RC pair was made milder.** At first it was R2 = 4 mΩ. A quick calculation showed this would make the voltage about 63 mV lower than the filter expects at 15 A. That is a very harsh test. The default is now R2 = 1.5 mΩ (same 400 s time constant). The harsh 4 mΩ version is kept as stress test E6.
 - **Sensors:** measured current = true + bias (0.5 A) + noise (0.2 A). Measured voltage = true + noise (10 mV).
 - **The EKF state now has five slots:** SoC, V1, bias b, capacity Cn, and resistance R0. Current drives the prediction; voltage corrects it.
-- **Three stages:** A learns SoC and V1. **B also learns R0 and is the main filter.** C learns all five. A state that a stage does not learn is "frozen": zero uncertainty and zero process noise, so the filter never changes it.
+- **Three stages:** A learns SoC and V1. **B also learns R0** and is the most accurate on a healthy battery. **C learns all five** and is the one that will make the go-home decision. A state that a stage does not learn is "frozen": zero uncertainty and zero process noise, so the filter never changes it.
 - **Why R0? (the investigation)** Stage A read the SoC about 2.5% too low and was overconfident: the truth was inside its ±3σ band only about 16% of the time. Turning on one mismatch at a time showed the cause. The 10% higher R0 was the worst (1.85% error alone). The battery sags more than the filter expects, so the filter thinks the SoC is lower. Making R bigger did not help (2.49%), and neither did the 10 mV model allowance on its own (2.48%), because a systematic error is not random noise. Learning R0 fixed it.
 - **Why not bias and capacity?** In one 14-minute flight, the filter cannot tell them apart from R0. When the current is steady, a bias error and a resistance error change the voltage in the same way. Capacity only shows as slow SoC drift. Stage C is kept as an "observability study", and learning b and Cn over many flights is future work.
 - **Measurement noise R has three parts:** sensor noise (10 mV), current noise through R0 (1.6 mV), and a **10 mV model-error allowance**. With 10 mV, the truth was inside the band 98% of the time (NIS about 0.5: a little too cautious, but honest). Honest bands matter because the return-home rule uses σ.
 - **Q is derived, not guessed:** the current-sensor noise is pushed through the model with a vector G. The covariance update uses the **Joseph form**, which keeps P symmetric and positive.
 - **Return-home rule:** margin m = SoC estimate − SoC needed to get home − 10% reserve. Getting home takes the flight time plus 40 s to land. The margin becomes a probability of a safe return using the bell curve. Go home when it falls below 95%. Four policies (A–D) will be compared, plus 8 experiments and a 500-flight Monte Carlo study.
+- **Choosing the decision filter (Python design check, 20 flights each).** On a healthy battery, B is the most accurate (about 1.1% error). But on an **aged battery** (only 85% capacity), B is confidently wrong: it thinks the battery is about 8% fuller than it is, and its band holds the truth only 27% of the time. That is the dangerous direction, because the drone would turn back too late. B blames the missing voltage on a higher R0 instead of a lower SoC. Stage C stayed honest (truth inside its band 100% of the time) in E1–E4, with 1.0–1.8% error. So **stage C will drive the go-home decision.** Lesson: *the most accurate filter is not always the safest one to make decisions with.*
+- **Stage C's bias and capacity are individually wrong, but the SoC is right.** In the aged-battery test it guessed capacity 4.49 Ah (true 4.25) and bias −0.80 A (true +0.5). These errors cancel: what matters for SoC is the discharge rate (Im − b)/Cn, and that was only about 3% off. The voltage can check the rate, but not the two parts separately, within one flight.
+- **Better starting guess:** from Day 4, the drone averages 10 resting voltage readings before take-off. This cuts the noise by about 3×, which fixes the "unlucky 3% low start" from Day 3.
+- **Day 4 experiments planned:** E3 bigger bias (0.8 A), E4 aged battery, E5 tuning (Q and R made 100× bigger or smaller), E6 a much bigger slow RC pair, E7 uncertainty vs the flat part of the curve, E8 all stages over 20 random flights.
 - These Python numbers are **design-stage checks**, not the final results. The final results come from the MATLAB runs.
 
 **Why it matters:** this is the heart of the project. It defines exactly what the filter and the decision rule do. The investigation story (find the error, test fixes, keep the one that works) shows real engineering judgement, which earns "depth" and "creativity" marks.
@@ -89,6 +94,10 @@ Chapter 5 after E2, and Chapters 6 and 7, are still skeletons. They will be adde
    A bias error changes the voltage by R0 × δb, and a resistance error by −I × δR0. When the current is steady, these look the same, so the filter cannot tell which one is wrong. Only current changes separate them.
 5. *Isn't adding a 10 mV allowance just cheating?*
    No. The model really is imperfect, and the allowance tells the filter so. Without it the band missed the truth more often (90% inside). With it, 98% inside, which is what the safety rule needs.
+6. *Why not use stage B for the decision, since it is the most accurate?*
+   Because on an aged battery it is confidently wrong, and wrong in the dangerous direction (it overestimates SoC). The go-home rule trusts the filter's σ, so an honest σ matters more than the last half-percent of accuracy.
+7. *Stage C's bias estimate was wrong. How can its SoC be right?*
+   The SoC only depends on the bias and capacity through the rate (Im − b)/Cn. Stage C got the rate nearly right, even though it split it wrongly between bias and capacity. Calibrating the bias at rest before take-off would fix the split.
 
 ---
 
@@ -103,6 +112,9 @@ Chapter 5 after E2, and Chapters 6 and 7, are still skeletons. They will be adde
 - `ekf_init.m` sets the starting guess, the uncertainty and the stage. Freezing a state is just two lines: its starting σ and its q are set to zero.
 - `ekf_step.m` is the filter: predict (lines 11–30), then compare and update (lines 32–50). Each line maps to an equation. The same code works for all stages with no `if` statements.
 - `coulomb_count.m` is the one-line baseline. `run_flight.m` flies one full mission with truth, sensors, EKF and baseline together. `main_day3_ekf.m` runs E1 and E2 with stages A and B.
+- `run_flight.m` now has options: `n_rest` (how many resting readings to average) and `q_scale`/`r_scale` (to turn the Q and R knobs in E5).
+- `flight_metrics.m` turns one flight into numbers: error (RMSE, final, max), how often the truth was inside the band, NIS, and NEES on SoC (should be about 1).
+- `main_day4_experiments.m` runs E3–E8. E8 alone is 300 flights (5 scenarios × 20 seeds × 3 stages). `ocv_lookup.m` now builds its curve once and reuses it, which is much faster but gives exactly the same numbers.
 - The decision-rule and Monte Carlo sections are still TODO.
 
 **Why it matters:** it shows the equations really are what the code does. That is part of the "correctness" mark.

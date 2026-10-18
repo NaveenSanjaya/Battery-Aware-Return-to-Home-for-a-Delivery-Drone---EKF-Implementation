@@ -34,16 +34,18 @@ The code is split into short files that each do one job, so that each can be und
     \texttt{sim/drone\_init.m} & Done & Drone at home, ready for take-off \\
     \texttt{sim/drone\_step.m} & Done & Moves the drone one step; returns current demand \\
     \texttt{sim/run\_flight.m} & Done & One flight with truth, sensors, EKF and charge counting \\
+    \texttt{sim/flight\_metrics.m} & Done & Error and consistency measures of one flight \\
     \texttt{estimators/ekf\_init.m} & Done & Initial state, covariance, stage and tuning \\
     \texttt{estimators/ekf\_step.m} & Done & One predict and update step \\
     \texttt{estimators/coulomb\_count.m} & Done & Charge-counting baseline \\
     \texttt{main\_day2\_simulator.m} & Done & Simulator test flight and figures \\
     \texttt{main\_day3\_ekf.m} & Done & Experiments E1 and E2 with stages A and B \\
+    \texttt{main\_day4\_experiments.m} & Done & Experiments E3--E8 \\
     \texttt{learning/day1\_ekf\_by\_hand.m} & Done & One-state EKF exercise (Section~\ref{sec:bg_example}) \\
     \midrule
     \texttt{decision/p\_safe\_return.m} & Planned & Margin to probability, \eqref{eq:m_margin}--\eqref{eq:m_psafe} \\
     \texttt{decision/rth\_policies.m} & Planned & The four turn-back policies A--D \\
-    \texttt{main\_single\_flight.m} & Planned & Remaining single-flight experiments \\
+    \texttt{main\_single\_flight.m} & Planned & One flight with the four RTH policies \\
     \texttt{main\_monte\_carlo.m} & Planned & 500 flights $\times$ 4 policies \\
     \texttt{plots/make\_figures.m} & Planned & Report figures \\
     \bottomrule
@@ -92,21 +94,25 @@ p.sens.sigV = 0.01;            % voltage sensor noise per cell (V, 1 sigma)
 \section{OCV lookup and initial SoC}\label{sec:i_ocv}
 %--------------------------------------------------------------------------------------------------
 
-\texttt{ocv\_lookup.m} (Listing~\ref{lst:i_ocv}) returns the OCV and, when asked for a second output, its slope. It implements the table of Table~\ref{tab:m_ocv} with \texttt{pchip} interpolation and the finite-difference slope \eqref{eq:m_ocv_slope}. The SoC is clamped to $[0, 1]$ first, so the function never extrapolates beyond the table. An optional \texttt{offset} argument shifts the curve; the simulator uses it to give the true battery its $-5$\,mV offset, while the filter uses the nominal curve. The same function is called with vectors to draw the OCV figure.
+\texttt{ocv\_lookup.m} (Listing~\ref{lst:i_ocv}) returns the OCV and, when asked for a second output, its slope. It implements the table of Table~\ref{tab:m_ocv} with \texttt{pchip} interpolation and the finite-difference slope \eqref{eq:m_ocv_slope}. The \texttt{pchip} fit is built only once, on the first call, and kept in a \texttt{persistent} variable (lines 16--21); later calls only evaluate it with \texttt{ppval}. This gives exactly the same values as calling \texttt{interp1} with \texttt{'pchip'} every time, but is much faster, which matters for the 300 flights of experiment E8 and the Monte Carlo study. The SoC is clamped to $[0, 1]$ first (line 24), so the function never extrapolates beyond the table. An optional \texttt{offset} argument shifts the curve; the simulator uses it to give the true battery its $-5$\,mV offset, while the filter uses the nominal curve.
 
-\begin{lstlisting}[caption={OCV value and slope (\texttt{config/ocv\_lookup.m}).},label={lst:i_ocv},firstnumber=17]
-soc_tab = [0 5 10 20 30 40 50 60 70 80 90 100] / 100;
-ocv_tab = [3.30 3.45 3.55 3.63 3.68 3.73 3.78 3.85 3.93 4.00 4.08 4.18];
+\begin{lstlisting}[caption={OCV value and slope (\texttt{config/ocv\_lookup.m}).},label={lst:i_ocv},firstnumber=16]
+persistent pp
+if isempty(pp)
+    soc_tab = [0 5 10 20 30 40 50 60 70 80 90 100] / 100;
+    ocv_tab = [3.30 3.45 3.55 3.63 3.68 3.73 3.78 3.85 3.93 4.00 4.08 4.18];
+    pp = pchip(soc_tab, ocv_tab);
+end
+if nargin < 2, offset = 0; end
 
 s   = min(max(soc, 0), 1);                         % stay inside the table
-ocv = interp1(soc_tab, ocv_tab, s, 'pchip') + offset;
+ocv = ppval(pp, s) + offset;
 
 if nargout > 1                                      % slope by finite difference
     h  = 0.005;
     hi = min(s + h, 1);
     lo = max(s - h, 0);
-    slope = (interp1(soc_tab, ocv_tab, hi, 'pchip') - ...
-             interp1(soc_tab, ocv_tab, lo, 'pchip')) ./ (hi - lo);
+    slope = (ppval(pp, hi) - ppval(pp, lo)) ./ (hi - lo);
 end
 \end{lstlisting}
 
@@ -343,25 +349,37 @@ soc = soc - Im * dt / (3600 * Cn);
 
 \texttt{run\_flight.m} flies one mission with the true battery, the sensors, the EKF and charge counting together, and records everything each second. The experiment is described by a small options structure: the true starting SoC, the estimators' starting guess, the initial SoC uncertainty, the EKF stage and the random seed.
 
-Listing~\ref{lst:i_run_init} shows what happens before take-off. The battery is at rest, so line 20 reads the voltage sensor once with zero current, which gives the OCV plus sensor noise. If the experiment does not prescribe a starting guess (\texttt{NaN}), line 23 converts that resting voltage into an SoC with \texttt{soc\_from\_ocv}, using the filter's nominal OCV curve. The EKF and charge counting then start from the same guess (lines 26--27).
+Listing~\ref{lst:i_run_init} shows what happens before take-off. Lines 23--25 read three optional settings, with defaults that reproduce the Day~3 runs exactly. The battery is at rest, so lines 29--34 read the voltage sensor with zero current \texttt{n\_rest} times and average the readings. Each reading is the OCV plus independent noise, so averaging 10 readings cuts the noise by $\sqrt{10} \approx 3$ (Section~\ref{sec:m_ekf_init}); the default of one reading keeps Day~3 reproducible. If the experiment does not prescribe a starting guess (\texttt{NaN}), line 37 converts the averaged resting voltage into an SoC with \texttt{soc\_from\_ocv}, using the filter's nominal OCV curve. Lines 41--43 serve the tuning experiment E5: they multiply the process noise by \texttt{q\_scale} and the measurement noise by \texttt{r\_scale}. Because $Q_k = G_k \sigma_I^2 G_k^{\top} + \mathrm{diag}(q)$ by \eqref{eq:m_Q}, scaling the diagonal terms \texttt{f.q} by \texttt{q\_scale} and $\sigma_I$ by $\sqrt{\texttt{q\_scale}}$ scales the whole of $Q_k$ by exactly \texttt{q\_scale}. The EKF and charge counting then start from the same guess (lines 40 and 44).
 
-\begin{lstlisting}[caption={Before take-off: starting guess from the resting voltage (\texttt{sim/run\_flight.m}).},label={lst:i_run_init},firstnumber=18]
+\begin{lstlisting}[caption={Before take-off: options, averaged resting voltage and tuning scales (\texttt{sim/run\_flight.m}).},label={lst:i_run_init},firstnumber=23]
+n_rest  = get_opt(opts, 'n_rest', 1);
+q_scale = get_opt(opts, 'q_scale', 1);
+r_scale = get_opt(opts, 'r_scale', 1);
+
 % ---- Before takeoff: battery at rest, so voltage = OCV ----
 batt = battery_true_init(opts.soc_true0);
-[~, Vm0] = read_sensors(0, ocv_lookup(opts.soc_true0, p.true.ocv_offset), p.sens);
+V_rest = ocv_lookup(opts.soc_true0, p.true.ocv_offset);
+Vm0 = 0;
+for i = 1:n_rest                             % average a few readings to beat the noise
+    [~, Vm_i] = read_sensors(0, V_rest, p.sens);
+    Vm0 = Vm0 + Vm_i / n_rest;
+end
 soc_guess0 = opts.soc_guess0;
 if isnan(soc_guess0)
     soc_guess0 = soc_from_ocv(Vm0, p.filt.ocv_offset);
 end
 
 f      = ekf_init(p, opts.stage, soc_guess0, opts.sig_soc0);
+f.q    = f.q * q_scale;                      % tuning experiments (E5)
+f.sigI = f.sigI * sqrt(q_scale);
+f.Rv   = f.Rv * r_scale;
 soc_cc = soc_guess0;                         % charge counting starts from the same guess
 drone  = drone_init(m);
 \end{lstlisting}
 
 The flight loop is the simulator test loop of Listing~\ref{lst:i_loop}, with the two estimators added after the sensors (Listing~\ref{lst:i_run_step}). The estimators receive only the measured current \texttt{Im} and voltage \texttt{Vm}, never the true values.
 
-\begin{lstlisting}[caption={Each second: truth, sensors, EKF and baseline (\texttt{sim/run\_flight.m}).},label={lst:i_run_step},firstnumber=52]
+\begin{lstlisting}[caption={Each second: truth, sensors, EKF and baseline (\texttt{sim/run\_flight.m}).},label={lst:i_run_step},firstnumber=69]
     [batt, V] = battery_true_step(batt, I, p.true, dt);   % truth
     [Im, Vm]  = read_sensors(I, V, p.sens);               % what the drone sees
     [f, info] = ekf_step(f, Im, Vm, dt);                  % EKF
@@ -383,13 +401,82 @@ E2.stage = 'B';  r2B = run_flight(p, m, E2);
 \end{lstlisting}
 
 %--------------------------------------------------------------------------------------------------
+\section{Performance measures}\label{sec:i_metrics}
+%--------------------------------------------------------------------------------------------------
+
+\texttt{flight\_metrics.m} (Listing~\ref{lst:i_metrics}) turns one recorded flight into the numbers reported in Chapter~\ref{ch:results}, for either the EKF or charge counting. Line 16 forms the SoC error (estimate minus truth). Lines 18--22 compute the RMSE, the error at landing, the largest absolute error and the convergence time (the last time the error was 2\% or more). For the EKF, lines 27--29 add the three consistency measures of Section~\ref{sec:m_ekf_consistency}: the share of time the truth was inside $\pm 3\sqrt{P_{11}}$, the mean NIS, and the mean NEES on the SoC, $e^2/P_{11}$, which should average about 1. Charge counting has no uncertainty, so these are set to \texttt{NaN} for it.
+
+\begin{lstlisting}[caption={Performance measures of one flight (\texttt{sim/flight\_metrics.m}).},label={lst:i_metrics},firstnumber=15]
+if strcmp(which, 'cc'), est = r.soc_cc; else, est = r.x(1,:); end
+e = est - r.soc;
+
+M.rmse   = sqrt(mean(e.^2));
+M.final  = e(end);
+M.maxabs = max(abs(e));
+bad = find(abs(e) >= 0.02, 1, 'last');
+if isempty(bad), M.conv = 0; else, M.conv = r.t(bad); end
+
+if strcmp(which, 'cc')
+    M.inside = NaN;  M.nis = NaN;  M.nees = NaN;
+else
+    M.inside = mean(abs(e) <= 3*sqrt(r.Pd(1,:)));
+    M.nis    = mean(r.nis);
+    M.nees   = mean(e.^2 ./ r.Pd(1,:));
+end
+\end{lstlisting}
+
+%--------------------------------------------------------------------------------------------------
+\section{Experiments E3 to E8}\label{sec:i_day4}
+%--------------------------------------------------------------------------------------------------
+
+\texttt{main\_day4\_experiments.m} runs experiments E3--E8 of Table~\ref{tab:m_experiments}. Each scenario is a pair of a parameter structure and an options structure, built from the nominal ones by changing only what the scenario tests (Listing~\ref{lst:i_day4_sc}). All start from the normal-flight options on lines 19--20, which include averaging 10 resting readings. E3 changes the sensor bias (line 29), E4 the true capacity and starting SoC (line 32), and E6 the slow RC pair (line 35).
+
+\begin{lstlisting}[caption={Scenario definitions (\texttt{main\_day4\_experiments.m}).},label={lst:i_day4_sc},firstnumber=18]
+% Normal flight settings; every scenario starts from these
+base = struct('soc_true0', 0.95, 'soc_guess0', NaN, 'sig_soc0', 0.03, ...
+              'seed', 2, 'n_rest', 10);   % n_rest: average 10 resting readings before takeoff
+
+%% Scenarios
+sc = {};
+sc{end+1} = scenario('E1', 'Normal flight',          p0, base);
+
+o = base;  o.soc_true0 = 0.85;  o.soc_guess0 = 1.00;  o.sig_soc0 = 0.20;
+sc{end+1} = scenario('E2', 'Wrong start (85%, assumed full)', p0, o);
+
+p = p0;  p.sens.bias = 0.8;
+sc{end+1} = scenario('E3', 'Sensor bias 0.8 A',      p, base);
+
+p = p0;  p.true.Cn = 0.85 * p0.true.Cn;  o = base;  o.soc_true0 = 1.00;
+sc{end+1} = scenario('E4', 'Aged battery (85% capacity)', p, o);
+
+p = p0;  p.true.R2 = 0.004;  p.true.C2 = 1e5;        % slow RC 2.7x bigger (tau 400 s)
+sc{end+1} = scenario('E6', 'Strong model mismatch',  p, base);
+\end{lstlisting}
+
+E3, E4, E6 and E7 are single runs with seed 2. E5 reruns stage~B on the E1 scenario with the five \texttt{[q\_scale, r\_scale]} pairs \texttt{[1 1; 0.01 1; 100 1; 1 0.01; 1 100]}. E8 (Listing~\ref{lst:i_day4_e8}) flies every scenario with seeds 1 to 20 and every stage: $5 \times 20 \times 3 = 300$ flights. Inside each scenario and seed, the three stages see exactly the same noise, because \texttt{run\_flight} resets the random generator with the seed. Charge counting is recorded once per scenario and seed (line 142), from the stage-A run; it does not depend on the stage. The script prints the mean results, saves the figures, and writes the summary table to \texttt{results/day4/e8\_summary.csv}.
+
+\begin{lstlisting}[caption={Stage comparison over 20 seeds (\texttt{main\_day4\_experiments.m}).},label={lst:i_day4_e8},firstnumber=137]
+for i = 1:nS
+    for j = 1:nSeed
+        for k = 1:numel(stages)
+            o = sc{i}.opts;  o.seed = seeds(j);  o.stage = stages{k};
+            r = run_flight(sc{i}.p, m, o);
+            if k == 1, R = store(R, i, 1, j, flight_metrics(r, 'cc')); end
+            R = store(R, i, k+1, j, flight_metrics(r, 'ekf'));
+        end
+    end
+    fprintf('  %s done (%.0f s)\n', sc{i}.code, toc);
+end
+\end{lstlisting}
+
+%--------------------------------------------------------------------------------------------------
 \section{Decision rule and policies}\label{sec:i_decision}
 %--------------------------------------------------------------------------------------------------
 
 \todo{Day 5. Describe \texttt{p\_safe\_return.m} (Equations~\eqref{eq:m_thome}--\eqref{eq:m_psafe}, with $\Phi$ computed from \texttt{erfc}) and \texttt{rth\_policies.m} (policies A--D of Table~\ref{tab:m_policies}). State the final values of $\sigma_{\text{trip}}$ and $p^{\ast}$. Explain how a policy's decision sets \texttt{d.mode = 'return'} and how the true battery then flies the drone home.}
 
 %--------------------------------------------------------------------------------------------------
-\section{Remaining experiment and Monte Carlo drivers}\label{sec:i_drivers}
+\section{Single-flight RTH and Monte Carlo drivers}\label{sec:i_drivers}
 %--------------------------------------------------------------------------------------------------
 
-\todo{Day 4--5. Describe how experiments E3--E8 are configured (e.g.\ stage C runs, the E6 stress-test parameters) and \texttt{main\_monte\_carlo.m} (how the random factors of Table~\ref{tab:m_mc_factors} are drawn, and how all four policies are given the same random draws). Give the run time if it is notable.}
+\todo{Day 5. Describe \texttt{main\_single\_flight.m} (one flight with the four policies) and \texttt{main\_monte\_carlo.m} (how the random factors of Table~\ref{tab:m_mc_factors} are drawn, and how all four policies are given the same random draws). Give the run time if it is notable.}

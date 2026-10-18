@@ -10,20 +10,37 @@ function rec = run_flight(p, m, opts)
 %   opts.stage      : EKF stage 'A', 'B' or 'C' (see ekf_init)
 %   opts.seed       : random seed (same seed = same noise = fair comparison)
 %
+%   Optional:
+%   opts.n_rest     : number of resting-voltage readings averaged before
+%                     takeoff (default 1; 10 cuts the starting error by ~3x)
+%   opts.q_scale    : multiply the EKF process noise Q by this (default 1)
+%   opts.r_scale    : multiply the EKF measurement noise R by this (default 1)
+%
 %   rec : everything recorded each second (truth, sensors, estimates)
 
 dt = p.dt;
 rng(opts.seed);
+n_rest  = get_opt(opts, 'n_rest', 1);
+q_scale = get_opt(opts, 'q_scale', 1);
+r_scale = get_opt(opts, 'r_scale', 1);
 
 % ---- Before takeoff: battery at rest, so voltage = OCV ----
 batt = battery_true_init(opts.soc_true0);
-[~, Vm0] = read_sensors(0, ocv_lookup(opts.soc_true0, p.true.ocv_offset), p.sens);
+V_rest = ocv_lookup(opts.soc_true0, p.true.ocv_offset);
+Vm0 = 0;
+for i = 1:n_rest                             % average a few readings to beat the noise
+    [~, Vm_i] = read_sensors(0, V_rest, p.sens);
+    Vm0 = Vm0 + Vm_i / n_rest;
+end
 soc_guess0 = opts.soc_guess0;
 if isnan(soc_guess0)
     soc_guess0 = soc_from_ocv(Vm0, p.filt.ocv_offset);
 end
 
 f      = ekf_init(p, opts.stage, soc_guess0, opts.sig_soc0);
+f.q    = f.q * q_scale;                      % tuning experiments (E5)
+f.sigI = f.sigI * sqrt(q_scale);
+f.Rv   = f.Rv * r_scale;
 soc_cc = soc_guess0;                         % charge counting starts from the same guess
 drone  = drone_init(m);
 
@@ -80,4 +97,9 @@ end
 rec.soc_guess0 = soc_guess0;
 rec.dist_flown = drone.dist_flown;
 rec.opts = opts;
+end
+
+% ---------------------------------------------------------------
+function v = get_opt(opts, name, default)
+if isfield(opts, name), v = opts.(name); else, v = default; end
 end

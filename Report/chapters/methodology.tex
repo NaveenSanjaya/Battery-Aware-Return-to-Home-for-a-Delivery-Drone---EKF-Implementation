@@ -13,7 +13,7 @@ Figure~\ref{fig:m_system} shows how the parts connect. The \textbf{simulator} fl
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{fig1_system_overview.png}
-  \caption[System overview.]{System overview. The EKF and the baselines see only the noisy sensor readings, as on a real drone. Only the simulator knows the truth, which is why simulation allows every estimation error and every turn-back decision to be scored exactly. (The EKF block lists the states of the original four-state design; the final main filter learns SoC, $V_1$ and $R_0$, Section~\ref{sec:m_ekf_stages}.)}
+  \caption[System overview.]{System overview. The EKF and the baselines see only the noisy sensor readings, as on a real drone. Only the simulator knows the truth, which is why simulation allows every estimation error and every turn-back decision to be scored exactly. (The EKF block lists the states of the original four-state design. The final stage-B filter learns SoC, $V_1$ and $R_0$; the stage-C filter, used for decisions, learns all five states; Section~\ref{sec:m_ekf_stages}.)}
   \label{fig:m_system}
 \end{figure}
 
@@ -325,8 +325,8 @@ Three versions of the filter are compared (Table~\ref{tab:m_stages}). All three 
     Stage & Learned states & Role \\
     \midrule
     A & $\mathrm{SoC}$, $V_1$ & Basic EKF \\
-    B & $\mathrm{SoC}$, $V_1$, $R_0$ & \textbf{Main filter}: also learns the resistance \\
-    C & $\mathrm{SoC}$, $V_1$, $b$, $C_n$, $R_0$ & All five states; used as an observability study (E3, E4, E8) \\
+    B & $\mathrm{SoC}$, $V_1$, $R_0$ & Most accurate on a healthy battery \\
+    C & $\mathrm{SoC}$, $V_1$, $b$, $C_n$, $R_0$ & All five states; observability study (E3, E4) and \textbf{decision filter} for the RTH rule (Section~\ref{sec:m_ekf_choice}) \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -360,14 +360,14 @@ The resistance mismatch is the largest error. The mechanism is simple: the true 
 
 \textbf{Step 3: a larger measurement noise does not help.} One tempting fix is to make the filter trust the voltage less by increasing $R$. This gave an RMSE of 2.49\%, no better. A larger $R$ only makes the filter react more slowly. The resistance error is systematic, not random, so the voltage still points to the wrong SoC and the filter still drifts there. A Kalman filter assumes its errors are white noise, and a systematic error breaks that assumption. The model-error allowance of \eqref{eq:m_Rv} does not rescue the basic filter either: with $\sigma_{\text{model}} = 10$\,mV (E1, seed 2), stage~A gave an RMSE of 2.48\%, the truth was inside its $\pm 3\sigma$ band only 17\% of the time, and its mean NIS was 0.52.
 
-\textbf{Step 4: learning $R_0$ fixes it.} Adding $R_0$ as an estimated state lets the filter explain the extra sag correctly. The sag changes with the current while the OCV does not, so the filter can separate the two: a voltage drop that appears only under heavy load must be resistance, not lower SoC. This became stage~B, the main filter.
+\textbf{Step 4: learning $R_0$ fixes it.} Adding $R_0$ as an estimated state lets the filter explain the extra sag correctly. The sag changes with the current while the OCV does not, so the filter can separate the two: a voltage drop that appears only under heavy load must be resistance, not lower SoC. This became stage~B.
 
 \textbf{Step 5: the bias and capacity could not be learned in one flight.} Adding $b$ and $C_n$ as well did not work within one 14-minute flight. The bias estimate ended at $-0.28$\,A when the true value was $+0.5$\,A, and with all five states the SoC RMSE rose to 1.96\%. The reason is \emph{observability}. From the $b$ and $R_0$ entries of $H$ in \eqref{eq:m_H}, small errors $\delta b$ and $\delta R_0$ change the predicted voltage by
 \begin{equation}
   \delta V \approx \hat{R}_0\, \delta b - (I_m - \hat{b})\, \delta R_0 .
   \label{eq:m_confound}
 \end{equation}
-When the current is nearly constant, the combination $\delta b = \frac{I_m - \hat{b}}{\hat{R}_0}\, \delta R_0$ leaves the voltage unchanged, so the measurements cannot tell a bias error from a resistance error. Only changes in current separate them. The capacity is even harder: it does not appear in $h$ at all and shows only through slow SoC drift, which the bias also causes. One flight with mostly steady cruise does not contain enough information to separate all three. Stage~C is therefore kept as an observability study (experiments E3, E4 and E8) rather than as the main filter. Estimating $b$ and $C_n$ over several flights is left as future work.
+When the current is nearly constant, the combination $\delta b = \frac{I_m - \hat{b}}{\hat{R}_0}\, \delta R_0$ leaves the voltage unchanged, so the measurements cannot tell a bias error from a resistance error. Only changes in current separate them. The capacity is even harder: it does not appear in $h$ at all and shows only through slow SoC drift, which the bias also causes. One flight with mostly steady cruise does not contain enough information to separate all three. Stage~C was therefore first planned only as an observability study (experiments E3 and E4). Section~\ref{sec:m_ekf_choice} shows why it nevertheless became the filter used for decisions.
 
 \textbf{Step 6: choosing the model-error allowance.} With $R_0$ learned, the remaining model errors (the slow RC pair, the OCV offset and the other parameter offsets) are still systematic. The allowance $\sigma_{\text{model}}$ in \eqref{eq:m_Rv} tells the filter about them. Table~\ref{tab:m_sigmodel} compares three values for stage~B. A mean NIS near 1 means the innovations have the size the filter expects; below 1 means the filter is more cautious than necessary.
 
@@ -388,6 +388,45 @@ When the current is nearly constant, the combination $\delta b = \frac{I_m - \ha
 
 The value $\sigma_{\text{model}} = 10$\,mV was chosen, and it is used for all three stages in the MATLAB experiments. It makes the filter slightly conservative (mean NIS about 0.5), but its $\pm 3\sigma$ band then contains the truth 98\% of the time, close to the 99.7\% expected of an honest Gaussian band. Honest bands matter more here than a NIS of exactly 1, because the RTH rule turns $\sigma_{\text{SoC}}$ directly into a safety margin. This does not contradict Step~3. There, a larger $R$ could not remove a large systematic error. Here, the large error has already been removed by learning $R_0$, and the allowance only makes the stated uncertainty cover the smaller errors that remain.
 
+\subsection{Choosing the filter for decisions}\label{sec:m_ekf_choice}
+
+The investigation above chose stage~B as the most accurate filter on a healthy battery. The RTH rule, however, will face batteries that are not healthy: the Monte Carlo study includes aged batteries and biased sensors (Table~\ref{tab:m_mc_factors}). Before the final experiments, all three stages and charge counting were therefore compared on the five scenarios of experiment E8, again in the Python port (Table~\ref{tab:m_stagecheck}). These are \textbf{design-stage checks}; the MATLAB results of E8 are reported in Section~\ref{sec:r_e8}.
+
+\begin{table}[htbp]
+  \centering
+  \caption[Design-stage stage comparison.]{Design-stage check (Python port, averages over 20 seeds): SoC RMSE, with the share of time the truth was inside the filter's $\pm 3\sigma$ band in brackets. Scenarios as in Table~\ref{tab:m_experiments}.}
+  \label{tab:m_stagecheck}
+  \small
+  \begin{tabular}{@{}lcccc@{}}
+    \toprule
+    Scenario & Charge counting & Stage A & Stage B & Stage C \\
+    \midrule
+    E1 Nominal          & 1.77\%  & 2.45\% (16\%) & 1.07\% (98\%)  & 1.56\% (100\%) \\
+    E2 Wrong start      & 13.85\% & 2.47\% (17\%) & 1.54\% (100\%) & 1.78\% (100\%) \\
+    E3 Bias 0.8\,A      & 2.50\%  & 2.31\% (22\%) & 1.32\% (91\%)  & 1.38\% (100\%) \\
+    E4 Aged battery     & 6.15\%  & 1.40\% (46\%) & 4.71\% (27\%)  & 1.00\% (100\%) \\
+    E6 Strong mismatch  & 1.77\%  & 5.09\% (6\%)  & 2.39\% (49\%)  & 4.30\% (81\%) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Stage B fails on an aged battery, in the dangerous direction.} With a battery at 85\% of its rated capacity, the true SoC falls faster than stage~B predicts, so the true OCV, and the voltage, end up lower than expected. During steady cruise, stage~B can explain this shortfall either by a lower SoC or by a higher resistance (Section~\ref{sec:m_ekf_investigation}, Step~5). It explains it with its $R_0$ state. Its SoC estimate therefore stays too high: in the design check it overestimated the SoC by about 8\% at landing (final error $+8.3\%$), and its band contained the truth only 27\% of the time. An overestimated SoC is the dangerous direction for a drone, because it turns back too late.
+
+\textbf{Stage C stays honest.} In scenarios E1--E4 its band contained the truth 100\% of the time, with an RMSE between 1.0\% and 1.8\%. It is slightly less accurate than stage~B on a healthy battery, because it has more unknowns to share the same information.
+
+\textbf{Its parameter estimates are individually wrong, but their combined effect is right.} In single runs (seed 2), stage~C's bias estimate in E3 ended at $-0.03$\,A when the true bias was $+0.8$\,A. In E4 its capacity estimate moved from 5.0 towards the true 4.25\,Ah, ending at 4.49\,Ah, while its bias estimate ended at $-0.80$\,A against a true $+0.5$\,A. Yet its SoC stayed accurate. The reason is in the process model \eqref{eq:m_f_soc}: the bias and the capacity affect the SoC only through the discharge rate
+\begin{equation}
+  r = \frac{I_m - b}{C_n},
+  \label{eq:m_rate}
+\end{equation}
+and the voltage, through the SoC, constrains only this rate. Many pairs $(b, C_n)$ give the same rate at the currents of one flight, so the rate is observable while $b$ and $C_n$ separately are not. In the E4 run above, the wrong-signed bias makes the estimated corrected current too large, which compensates for the capacity estimate still being too high. At a true current of 15\,A, the filter's estimated rate is $(15 + 0.5 + 0.80)/4.49 \approx 3.63$ per hour against the true $15/4.25 \approx 3.53$ per hour: only about 3\% apart, although the bias is 1.3\,A wrong.
+
+\textbf{Decision.} Stage~C will drive the RTH decision. The RTH rule turns $\sigma_{\text{SoC}}$ directly into a safety margin, and the Monte Carlo study includes aged batteries, so a filter whose uncertainty stays honest matters more than the last 0.5\% of accuracy on a healthy battery. The lesson is that \emph{the most accurate filter is not always the safest one to make decisions with}. Stage~B remains the most accurate estimator of a healthy battery, and both are reported in Chapter~\ref{ch:results}.
+
+Two cheap additions would make $b$ and $C_n$ individually observable, and are left as future work: calibrating the current-sensor bias at rest before take-off, when the true current is known to be zero; and estimating the capacity between flights, from the charge drawn (ampere-hours) and the SoC read from the resting voltage before and after the flight.
+
+In the strong-mismatch scenario E6 all filters degrade, and even the best band (stage~C) contains the truth only 81\% of the time. This is the honest limit of the method: when the model is too wrong, the EKF becomes biased and overconfident. Possible remedies are a two-RC filter model, a larger $\sigma_{\text{model}}$, or adaptive noise estimation.
+
 \subsection{Initialisation and tuning}\label{sec:m_ekf_init}
 
 The initial estimate is
@@ -395,7 +434,7 @@ The initial estimate is
   \hat{x}_0 = \begin{bmatrix} \widehat{\mathrm{SoC}}_0 & 0 & 0 & 5.0\text{\,Ah} & 8\text{\,m}\Omega \end{bmatrix}^{\top}:
   \label{eq:m_x0}
 \end{equation}
-no polarisation (the battery has rested), no known bias, and the nominal capacity and resistance. In normal use the starting SoC is read from the resting voltage before take-off. The battery is at rest, so the measured voltage is the OCV plus sensor noise, and an inverse lookup of the OCV table gives the SoC. Its uncertainty is then small, $\pm 3\%$ (one standard deviation). The wrong-start test (E2) instead assumes a full battery with a large uncertainty of $\pm 20\%$, to see how the filter recovers.
+no polarisation (the battery has rested), no known bias, and the nominal capacity and resistance. In normal use the starting SoC is read from the resting voltage before take-off. The battery is at rest, so the measured voltage is the OCV plus sensor noise, and an inverse lookup of the OCV table gives the SoC. Its uncertainty is then small, $\pm 3\%$ (one standard deviation). In the Day~4 experiments (E3--E8, including the E1 and E2 scenarios repeated in E8) the resting voltage is the average of 10 readings, which reduces its noise by $\sqrt{10} \approx 3$, to about 3\,mV, or roughly 0.3\% SoC near full charge, where the curve rises by about 10\,mV per 1\% SoC. The Day~3 runs of E1 and E2 (Sections~\ref{sec:r_e1} and~\ref{sec:r_e2}) used a single reading, and the start about 3\% low seen there motivated this change. The wrong-start test (E2) instead assumes a full battery with a large uncertainty of $\pm 20\%$, to see how the filter recovers.
 
 The initial uncertainty (one standard deviation) of the other states is $\pm 10$\,mV for $V_1$, $\pm 1$\,A for the bias, $\pm 0.5$\,Ah for the capacity and $\pm 4$\,m$\Omega$ for the resistance, so for a stage that learns all states
 \begin{equation}
@@ -448,14 +487,13 @@ A filter can be accurate yet overconfident, which is dangerous for a decision ru
   \item \textbf{Normalised innovation squared (NIS).} $\epsilon_{\text{NIS},k} = \tilde{y}_k^2 / S_k$ should average about 1 (the number of measurements). A much larger average means the filter is overconfident; a much smaller one means it is too cautious.
   \item \textbf{Normalised estimation error squared (NEES).} $\epsilon_{\text{NEES},k} = e_k^{\top} P_k^{-1} e_k$, with $e_k = x_k - \hat{x}_k$, should average about the number of states compared. It needs the true state, so it can only be computed in simulation.
 \end{itemize}
-NEES can only use states that are learned (frozen states have zero variance, so $P$ cannot be inverted over them) and that have a true counterpart. The filter's $V_1$ has none, because the true battery has two RC pairs. For stage~B the NEES will therefore use $\mathrm{SoC}$ and $R_0$ (expected average 2).
-% TODO: confirm which states the NEES uses once the analysis code exists.
+The NEES is computed on the SoC alone, $\epsilon_{\text{NEES},k} = e_{\text{SoC},k}^2 / P_{k,11}$, with an expected average of 1. This is the state the RTH rule uses, and it avoids two problems with the full state: the filter's $V_1$ has no true counterpart (the true battery has two RC pairs), and frozen states have zero variance, so $P$ cannot be inverted over them.
 
 %--------------------------------------------------------------------------------------------------
 \section{Risk-aware return-to-home rule}\label{sec:m_rth}
 %--------------------------------------------------------------------------------------------------
 
-Every second, the drone computes the probability that it can still reach home with a safety reserve. When this probability drops below a threshold $p^{\ast} = 95\%$, it turns back.
+Every second, the drone computes the probability that it can still reach home with a safety reserve. When this probability drops below a threshold $p^{\ast} = 95\%$, it turns back. The SoC estimate and its uncertainty come from the stage-C filter (Section~\ref{sec:m_ekf_choice}).
 
 \subsection{What getting home costs}\label{sec:m_rth_cost}
 
@@ -509,7 +547,8 @@ For $p^{\ast} = 0.95$, $\Phi(1.645) = 0.95$, so the rule is the same as ``return
 
 A rule that used only the estimate would treat both cases the same. The risk-aware rule does not, and that is the reason for estimating the uncertainty at all.
 
-The rule rests on stated assumptions: a straight flight home, a constant cruise current, and Gaussian errors. The capacity estimate in \eqref{eq:m_dsoc_home} is also treated as exact; its uncertainty is not included in $\sigma_{\text{total}}$.
+The rule rests on stated assumptions: a straight flight home, a constant cruise current, and Gaussian errors. The capacity estimate in \eqref{eq:m_dsoc_home} is also treated as exact; its uncertainty is not included in $\sigma_{\text{total}}$. Because stage~C's capacity estimate is not reliable on its own (only the rate \eqref{eq:m_rate} is), the trip cost may be better computed from the filter's estimated discharge rate at the measured cruise current, $(I_{m,\text{cruise}} - \hat{b})/\hat{C}_n$, than from $I_{\text{cruise}}/\hat{C}_n$.
+% TODO: decide how p_safe_return.m computes the trip cost (nominal Cn, estimated Cn, or the estimated rate).
 % TODO: fix the final value of sigma_trip once p_safe_return.m exists.
 
 \subsection{The four policies compared}\label{sec:m_policies}
@@ -526,8 +565,8 @@ Four turn-back policies will be compared on the same missions (Table~\ref{tab:m_
     \midrule
     A. Voltage threshold & Return when the measured cell voltage stays below 3.6\,V for 5\,s & Fooled by sag; ignores the distance from home \\
     B. Charge counting & Margin rule \eqref{eq:m_margin} with SoC from charge counting, assuming a full, new battery & Drifts with bias, a wrong start or an aged battery \\
-    C. EKF estimate only & Return when $m_k < 0$ & Turns back too late when the filter is unsure \\
-    D. EKF risk-aware & Return when $P_{\text{safe},k} < 95\%$ & Expected best: rarely fails, wastes little \\
+    C. EKF estimate only & Return when $m_k < 0$, using stage C & Turns back too late when the filter is unsure \\
+    D. EKF risk-aware & Return when $P_{\text{safe},k} < 95\%$, using stage C & Expected best: rarely fails, wastes little \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -545,11 +584,11 @@ After a policy decides to turn back, the simulator flies the drone home on the t
 \section{Planned experiments}\label{sec:m_experiments}
 %--------------------------------------------------------------------------------------------------
 
-Eight single-flight experiments build understanding of the filter (Table~\ref{tab:m_experiments}). A Monte Carlo study of 500 random missions then compares the four policies, and a threshold sweep shows the safety-versus-range trade-off.
+Eight experiments build understanding of the filter (Table~\ref{tab:m_experiments}). All use the short mission. Single runs use random seed~2. In E3--E8 the starting SoC is read from 10 averaged resting readings (E1 and E2 were first run with a single reading). E8 repeats five scenarios over 20 seeds. A Monte Carlo study of 500 random missions then compares the four RTH policies, and a threshold sweep shows the safety-versus-range trade-off.
 
 \begin{table}[htbp]
   \centering
-  \caption{Planned single-flight experiments.}
+  \caption{Estimation experiments.}
   \label{tab:m_experiments}
   \small
   \begin{tabular}{@{}lp{0.2\textwidth}p{0.27\textwidth}p{0.38\textwidth}@{}}
@@ -558,12 +597,12 @@ Eight single-flight experiments build understanding of the filter (Table~\ref{ta
     \midrule
     E1 & Nominal flight & True SoC 95\%; start read from the resting voltage, $\sigma_{\text{SoC},0} = 3\%$ & Stage B tracks closely with an honest band; stage A is biased by the resistance mismatch \\
     E2 & Wrong start & True SoC 85\%; both estimators assume 100\%, $\sigma_{\text{SoC},0} = 20\%$ & Counting keeps most of its 15\% start error; the EKF converges (how fast is measured) \\
-    E3 & Bias observability & Bias of +0.8\,A; stage C & Counting drifts steadily; tests whether stage C can learn the bias in one flight, or confuses it with $R_0$ \\
-    E4 & Capacity observability & True capacity 85\% of rated; stage C & Counting runs out early; tests how far the capacity estimate moves in one flight \\
-    E5 & Tuning & $Q$ and $R$ scaled by 0.01, 1 and 100 & Too little $Q$: slow and overconfident; too much: jumpy \\
-    E6 & Model-mismatch stress test & Slow pair $R_2 = 4$\,m$\Omega$; parameters off by up to $\pm 15\%$ & Some error appears; NEES and NIS show whether the bands stay honest \\
-    E7 & Flat OCV region & Mid-SoC part of a flight & $\sigma_{\text{SoC}}$ grows where the curve is flat, and the risk rule reacts \\
-    E8 & Stage comparison & Stages A, B and C on the same biased, aged flight & Shows what learning $R_0$ buys, and what adding $b$ and $C_n$ costs or buys \\
+    E3 & Bias observability & Bias $+0.8$\,A instead of $+0.5$\,A; stages B and C & Counting drifts faster; tests whether stage C learns the bias or confuses it with $R_0$ and $C_n$ \\
+    E4 & Capacity observability & True capacity 4.25\,Ah (85\% of rated), true start 100\%; stages B and C & Counting overestimates the SoC; tests whether stage B stays honest and how far stage C's capacity moves \\
+    E5 & Tuning & Stage B on E1 with $Q{\times}1/R{\times}1$ (chosen), $Q{\times}0.01$, $Q{\times}100$, $R{\times}0.01$, $R{\times}100$ & Large $Q$: jumpy; small $R$: overconfident, flagged by a large NIS; large $R$: bands too wide \\
+    E6 & Model-mismatch stress test & Slow pair $R_2 = 4$\,m$\Omega$, $C_2 = 10^5$\,F ($\tau_2 = 400$\,s); stages A, B and C & All filters degrade; shows the limit of a one-RC model \\
+    E7 & Flat OCV region & $\sigma_{\text{SoC}}$ against true SoC for stages B and C on E1, after the first minute & $\sigma_{\text{SoC}}$ grows where the OCV slope is small \\
+    E8 & Stage comparison & 20 seeds $\times$ scenarios E1, E2, E3, E4, E6 $\times$ stages A, B, C, plus charge counting & Mean accuracy and band coverage per scenario; supports the choice of decision filter \\
     \bottomrule
   \end{tabular}
 \end{table}

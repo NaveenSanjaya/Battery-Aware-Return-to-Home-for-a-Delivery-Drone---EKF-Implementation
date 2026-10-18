@@ -31,6 +31,16 @@ Notes from Day 3 (to expand):
   \item The E1 resting-voltage guess was about 3\% low from a single noisy reading. Averaging several readings before take-off would reduce this; worth mentioning as a cheap improvement.
 \end{itemize}
 
+Notes from Day 4 design checks (confirm with the MATLAB results):
+\begin{itemize}
+  \item E5: NIS detects a mistuned $R$ (with $R{\times}0.01$ the mean NIS was about 32 and the band never held the truth), but it cannot detect model bias (stage A: NIS about 0.5, yet biased). NIS checks the voltage, not the hidden state.
+  \item E6: when the model is too wrong, every stage becomes biased and overconfident. Remedies: a two-RC filter model, a larger $\sigma_{\text{model}}$, adaptive noise estimation.
+  \item E7: stage C's $\sigma_{\text{SoC}}$ grows as the OCV curve flattens, as theory predicts; stage B's shrinks slowly because information keeps accumulating through $R_0$, which masks the flat-region effect. Report both.
+\end{itemize}
+
+\section{Choosing the filter for decisions}\label{sec:d_choice}
+\todo{Use E4 and E8 (Section~\ref{sec:m_ekf_choice}): stage B is the most accurate on a healthy battery, but on an aged battery its $R_0$ absorbs the voltage shortfall and it overestimates the SoC confidently, which is the dangerous direction. Stage C is honest in E1--E4, because only the discharge rate $(I_m - b)/C_n$ is observable and it gets that right even when $b$ and $C_n$ are individually wrong. Main lesson: the most accurate filter is not always the safest one to make decisions with. Future work: calibrate the bias at rest before take-off, and estimate capacity between flights from ampere-hour throughput and the resting-voltage SoC before and after.}
+
 \section{Value of uncertainty in the return-to-home decision}\label{sec:d_value_uncertainty}
 \todo{Use the single-flight and Monte Carlo results: compare policies C and D, which share the same estimate and differ only in using $\sigma_{\text{SoC}}$; explain each policy's failures and wasted battery; discuss the threshold-sweep trade-off and how an operator would choose $p^{\ast}$.}
 
