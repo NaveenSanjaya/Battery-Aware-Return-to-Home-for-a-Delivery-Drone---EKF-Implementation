@@ -2,7 +2,7 @@
 
 This is a study aid, not part of the report. For each chapter written so far, it says in simple words what the chapter says and why it matters. It then gives a few questions an examiner might ask, with short answers.
 
-Chapter 5 after E2, and Chapters 6 and 7, are still skeletons. They will be added here when they are written.
+Chapter 5 after E8 (the return-home results), and Chapters 6 and 7, are still skeletons. They will be added here when they are written.
 
 ---
 
@@ -181,6 +181,32 @@ Chapter 5 after E2, and Chapters 6 and 7, are still skeletons. They will be adde
    NIS below 1 means the filter is a bit more cautious than needed. That is on purpose: we added a 10 mV allowance for model error so the bands stay honest (100% of the time inside here). For a safety decision, a slightly too-wide band is much better than a too-narrow one.
 3. *Stage A's NIS was also fine (0.54), yet it was wrong. How?*
    NIS only checks whether the voltage is explained. Stage A explains the voltage perfectly, but with the wrong SoC. Only comparing with the true SoC (possible in simulation) shows the error.
+
+---
+
+## Chapter 5 (part written): E3 to E8, stress tests (Day 4)
+
+**What it says**
+
+- From Day 4 the drone averages 10 resting readings before take-off, so the starting guess is better. Single runs use seed 2. E8 repeats everything over 20 random flights.
+- **E3 (sensor bias 0.8 A):** charge counting drifts to −4.8%. Both EKF stages stay within about 2.5%. Stage C's bias guess only got to about +0.5 A (true +0.8; ended +0.33), but it *knew* it was unsure (wide band). Stage B was a bit overconfident (88% inside).
+- **E4 (old battery, 85% capacity) is the key result.** The battery really landed at 9.9%, below the reserve. Charge counting thought 20.1%. **Stage B also failed:** it thought the battery was 8.5% fuller than it was, and its band held the truth only 28% of the time. **Stage C was right** (error +0.2%, 100% inside its band).
+- **How stage C did it:** its capacity guess fell from 5.0 to 4.45 Ah (true 4.25), and its bias guess was −0.42 A (true +0.5, wrong sign!). These two errors cancel. The SoC only depends on the rate (current − bias) / capacity, and stage C got that rate right to within about 1.5%.
+- **E5 (tuning):** making R 100× smaller made the filter believe every voltage wiggle. It swung to −13% during take-off and its NIS was 32, which clearly flags the problem. Making R 100× bigger made the band far too wide. Making Q 100× smaller was slightly more accurate but less honest (94% inside). We kept the chosen tuning.
+- **E6 (much bigger hidden slow RC pair):** every filter got worse, and none stayed honest. Stage B was only as good as charge counting. This is the honest limit: if the model is too wrong, the voltage misleads the filter.
+- **E7 (flat part of the curve):** stage C's uncertainty grows from 1.5% to 2.2% as the curve flattens. It even dips briefly at 65–70% SoC, exactly where the curve has a small steep bump. So the uncertainty really follows the curve's slope. Stage B's uncertainty shrinks instead, because it keeps learning R0.
+- **E8 (20 flights each):** stage C is the **only filter honest in all of E1–E4** (100% inside), with 1.0–1.8% error. Stage B is the most accurate on a healthy battery (1.03%) but fails on the old one. **So stage C will make the go-home decision.**
+
+**Why it matters:** this is the evidence for the project's main design choice. A filter that is very accurate but sometimes confidently wrong is dangerous for a safety decision. Stage C is a little less accurate on a good battery, but you can trust its uncertainty.
+
+**Examiner questions**
+
+1. *Stage C got the bias wrong, even the sign. Why should we trust it?*
+   Because we trust it for the SoC, not the bias. The voltage only checks the rate (current − bias)/capacity, and stage C got that right. It also says honestly that it is unsure about the bias (wide band). Calibrating the bias at rest before take-off would fix the split.
+2. *Why did stage B fail on the old battery?*
+   The voltage dropped faster than expected. Stage B could explain that either with a lower SoC or a higher resistance, and it chose higher resistance. So its SoC stayed too high, and it was confident about it.
+3. *In E6 charge counting beat some filters. Doesn't that show the EKF is useless?*
+   No. It shows the EKF's limit: it is only as good as its model. When the model is far off, the voltage pushes it the wrong way. In the other scenarios (wrong start, old battery) charge counting was far worse (13.8% and 6.2% error). Fixes for E6 would be a 2-RC filter model or adaptive noise.
 
 ---
 

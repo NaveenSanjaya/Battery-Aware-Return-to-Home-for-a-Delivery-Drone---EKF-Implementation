@@ -167,13 +167,16 @@ T = cell2table(rows, 'VariableNames', {'code', 'scenario', 'method', 'rmse_pct',
 figE8 = figure('Name', 'E8 summary', 'Color', 'w', 'Position', [160 160 950 650]);
 labels = cellfun(@(s) s.code, sc, 'UniformOutput', false);
 subplot(2,1,1);
-bar(100*mean(R.rmse, 3));  grid on;  set(gca, 'XTickLabel', labels);
-ylabel('Mean RMSE (% SoC)');  legend(meth, 'Location', 'northwest');
+mcol = [0.85 0.2 0.2; 0.95 0.6 0.1; 0 0.3 0.9; 0.75 0 0.75];   % same colours as the other figures
+hb = bar(100*mean(R.rmse, 3));  grid on;  set(gca, 'XTickLabel', labels);
+for c = 1:4, hb(c).FaceColor = mcol(c,:); end
+ylabel('Mean RMSE (% SoC)');  legend(meth, 'Location', 'northoutside', 'Orientation', 'horizontal');
 title(sprintf('E8: accuracy over %d random flights per scenario (lower is better)', nSeed));
 subplot(2,1,2);
-bar(100*mean(R.inside(:,2:4,:), 3));  grid on;  set(gca, 'XTickLabel', labels);  ylim([0 105]);
+hb = bar(100*mean(R.inside(:,2:4,:), 3));  grid on;  set(gca, 'XTickLabel', labels);  ylim([0 105]);
+for c = 1:3, hb(c).FaceColor = mcol(c+1,:); end
 yline(99.7, 'k--', 'ideal 99.7%', 'HandleVisibility', 'off');
-ylabel('Truth inside \pm3\sigma (%)');  legend(meth(2:4), 'Location', 'southwest');
+ylabel('Truth inside \pm3\sigma (%)');  legend(meth(2:4), 'Location', 'northoutside', 'Orientation', 'horizontal');
 title('Honesty: how often the truth was inside the filter''s own band (higher is better)');
 
 %% Save

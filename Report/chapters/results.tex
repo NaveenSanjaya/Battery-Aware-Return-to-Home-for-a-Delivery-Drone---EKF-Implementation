@@ -95,7 +95,6 @@ The simulator behaves as intended. The voltage sags realistically under load, it
 %--------------------------------------------------------------------------------------------------
 
 Experiments E1 and E2 were run with \texttt{main\_day3\_ekf.m} (Section~\ref{sec:i_run_flight}) on the short mission, with the default true battery of Table~\ref{tab:m_params} (slow pair $R_2 = 1.5$\,m$\Omega$), the sensor errors of Section~\ref{sec:m_sensors} (current bias $+0.5$\,A) and random seed~2. Three estimators were compared on exactly the same sensor readings: charge counting, EKF stage~A (learns SoC and $V_1$) and EKF stage~B (also learns $R_0$). Both EKF stages used the model-error allowance $\sigma_{\text{model}} = 10$\,mV. Table~\ref{tab:r_e1e2} summarises the results. The convergence time is the last time the SoC error was 2\% or more; ``never'' means the error was still at least 2\% at landing.
-% TODO: Add the short introduction for the remaining experiments (E3-E8) when they are run.
 
 \begin{table}[htbp]
   \centering
@@ -186,28 +185,204 @@ In E2 the true battery started at 85\%, but all three estimators assumed a full 
 
 The MATLAB results show the same pattern as the design-stage checks in the Python port (Section~\ref{sec:m_ekf_investigation}). For stage~B, the SoC RMSE was 0.97\% in MATLAB against 1.04\% in the port for E1, and 1.32\% against 1.00\% for E2. The two implementations use different random-number generators, so the same seed gives different noise, and single-run numbers differ slightly. The largest difference is for charge counting in E1 (4.36\% in MATLAB against 1.60\% in the port). This is because the MATLAB resting-voltage guess happened to be about 3\% low, and charge counting never corrects a start error. The averages over many missions in the Monte Carlo study (Section~\ref{sec:r_mc}) will remove this single-run luck.
 
+\subsection{Common settings for E3 to E8}\label{sec:r_day4_setup}
+
+Experiments E3--E8 were run with \texttt{main\_day4\_experiments.m} (Section~\ref{sec:i_day4}) on the short mission. The starting SoC was read from 10 averaged resting readings, and single runs used seed~2. Because of the averaging, the random numbers differ from the Day~3 runs, so the E1 and E2 scenarios inside E8 do not reproduce Table~\ref{tab:r_e1e2} exactly. Besides the errors, the tables give the mean NEES on the SoC ($e^2/P_{11}$, Section~\ref{sec:m_ekf_consistency}), which should be about 1 for an honest filter; much larger means overconfident.
+
 \subsection{E3: Bias observability (stage C)}\label{sec:r_e3}
-% Design-stage check (Python, seed 2), for comparison only: stage C bias estimate -0.03 A vs true +0.8 A.
-\todo{Day 4 (\texttt{main\_day4\_experiments.m}, figure \texttt{fig\_e3\_bias.png}). Stages B and C, 10 averaged resting readings. Bias $+0.8$\,A. Figure: SoC error of stages B and C, and stage C's bias estimate with its $\pm 3\sigma$ band vs the truth. Show whether the bias is learned in one flight or confused with $R_0$, as predicted by \eqref{eq:m_confound}; compare the SoC error with stage B and charge counting.}
+
+In E3 the current sensor read 0.8\,A too high instead of 0.5\,A. Table~\ref{tab:r_e3e4} and Figure~\ref{fig:r_e3} show the results.
+
+\begin{table}[htbp]
+  \centering
+  \caption[Single runs of E3 and E4.]{Single runs of E3 (bias 0.8\,A) and E4 (aged battery), seed 2. NEES is the mean NEES on the SoC (about 1 for an honest filter).}
+  \label{tab:r_e3e4}
+  \small
+  \begin{tabular}{@{}llccccc@{}}
+    \toprule
+    & Estimator & RMSE & Final error & Inside $\pm 3\sigma$ & Mean NIS & Mean NEES \\
+    \midrule
+    E3 & Charge counting & 3.13\% & $-4.83\%$ & -- & -- & -- \\
+       & EKF stage B     & 1.28\% & $-2.50\%$ & 88\%  & 0.51 & 3.10 \\
+       & EKF stage C     & 1.58\% & $-1.88\%$ & 100\% & 0.51 & 0.64 \\
+    \midrule
+    E4 & Charge counting & 5.72\% & $+10.20\%$ & -- & -- & -- \\
+       & EKF stage B     & 4.64\% & $+8.47\%$ & 28\%  & 0.56 & 44.81 \\
+       & EKF stage C     & 0.80\% & $+0.17\%$ & 100\% & 0.51 & 0.22 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Charge counting} drifts low at a steady rate and ends at $-4.83\%$. This matches \eqref{eq:bg_cc_drift}: 0.8\,A for about 14\,minutes is about 0.19\,Ah, or 3.8\% of 5\,Ah, on top of a start error of about $-1\%$.
+
+\textbf{Both EKF stages} do much better. Stage~B, which does not model the bias, is slightly more accurate (RMSE 1.28\%), because the voltage keeps correcting the drift the bias causes. Its band, however, contained the truth only 88\% of the time, and its mean NEES of 3.10 shows it is overconfident: it does not know about the extra error. Stage~C ended closer to the truth ($-1.88\%$) and was honest (100\% inside, NEES 0.64).
+
+\textbf{The bias itself is only partly learned.} Stage~C's bias estimate rose to about $+0.5$\,A soon after take-off and stayed there for most of the flight, ending at $+0.33$\,A against a true $+0.80$\,A (Figure~\ref{fig:r_e3}, bottom). Its $\pm 3\sigma$ band stayed wide, about $\pm 1.8$\,A. The filter knows that it has not pinned the bias down, which is the honest answer: within one flight the bias is confounded with $R_0$ and $C_n$ (Equation~\eqref{eq:m_confound} and Section~\ref{sec:m_ekf_choice}).
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day4_e3_bias.png}
+  \caption{E3, sensor bias 0.8\,A. Top: SoC error of charge counting, stage B and stage C, with the stage-C $\pm 3\sigma$ band. Bottom: stage-C bias estimate with its band. Notice that charge counting drifts steadily while both EKF stages stay within about 3\%, and that the bias estimate settles near 0.5\,A, below the true 0.8\,A, with a band that stays wide: the bias is only partly learned in one flight.}
+  \label{fig:r_e3}
+\end{figure}
 
 \subsection{E4: Capacity observability (stage C)}\label{sec:r_e4}
-% Design-stage check (Python, seed 2): stage C capacity 4.49 Ah (true 4.25), bias -0.80 A (true +0.5); combined rate (Im-b)/Cn about 3% off.
-\todo{Day 4 (figure \texttt{fig\_e4\_aged.png}). True capacity 4.25\,Ah, true start 100\%, stages B and C. Report the true SoC at landing vs what charge counting believed, and stage B's final error and band coverage (the dangerous overestimate of Section~\ref{sec:m_ekf_choice}). Check whether the combined rate \eqref{eq:m_rate} is right although $b$ and $C_n$ are individually wrong. Figure: capacity estimate with $\pm 3\sigma$ band vs truth. Report how far the estimate moves in one flight, and how stage B (which assumes 5\,Ah) and charge counting cope. Relate the result to the weak observability of $C_n$ (Section~\ref{sec:m_ekf_investigation}).}
+
+In E4 the true battery had aged to 85\% of its rated capacity (4.25\,Ah instead of 5.00\,Ah) and started full, so that it could still complete the short mission. All estimators assumed 5.00\,Ah at the start.
+
+\textbf{Charge counting} ended $+10.20\%$ too high. At landing the true SoC was 9.9\%, below the 10\% reserve, while charge counting believed 20.1\%. Most of this error comes from the capacity: the charge actually drawn, about 3.8\,Ah, is 90\% of 4.25\,Ah but only about 77\% of 5\,Ah.
+
+\textbf{Stage B failed, in the dangerous direction.} Its error grew almost parallel to that of charge counting (Figure~\ref{fig:r_e4}, top), ending at $+8.47\%$. Its band contained the truth only 28\% of the time, and its mean NEES was 44.81, far above 1. Stage~B was therefore confidently wrong, and wrong on the optimistic side: a drone using it would believe it had more charge than it had and would turn back too late. This is the failure predicted by the design check (Section~\ref{sec:m_ekf_choice}). The voltage falls faster than stage~B expects, and stage~B blames the shortfall on its resistance state instead of lowering its SoC.
+
+\textbf{Stage C stayed accurate and honest}: RMSE 0.80\%, final error $+0.17\%$, 100\% inside its band, mean NEES 0.22. Its capacity estimate fell from 5.0\,Ah to about 4.35--4.45\,Ah within about 5\,minutes and ended at 4.45\,Ah, against the true 4.25\,Ah (Figure~\ref{fig:r_e4}, bottom). Its bias estimate ended at $-0.42$\,A, against a true $+0.50$\,A: the wrong sign. The two errors compensate each other. With a measured cruise current of about $15 + 0.5$\,A, the filter's discharge rate \eqref{eq:m_rate} is approximately $(15 + 0.5 + 0.42)/4.45 \approx 3.58$ per hour, against the true $15/4.25 \approx 3.53$ per hour. The rate, which is what the voltage can check, is right to within about 1.5\%, although its two parts are individually wrong. This confirms the observability argument of Section~\ref{sec:m_ekf_choice}.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day4_e4_aged.png}
+  \caption{E4, battery aged to 85\% capacity. Top: SoC error of charge counting, stage B and stage C, with the stage-C $\pm 3\sigma$ band. Bottom: stage-C capacity estimate with its band. Notice that stage B's error grows almost as fast as that of charge counting and leaves the band, both overestimating the SoC, while stage C stays near zero as its capacity estimate falls from 5.0 towards the true 4.25\,Ah within about 5 minutes.}
+  \label{fig:r_e4}
+\end{figure}
 
 \subsection{E5: Tuning Q and R}\label{sec:r_e5}
-% Design-stage check (Python, stage B, E1, seed 2), RMSE / inside / NIS: chosen 1.04/100/0.50; Qx0.01 0.85/95/0.53; Qx100 2.79/100/0.32; Rx0.01 3.79/0/31.9; Rx100 1.22/100/0.01.
-\todo{Day 4 (figure \texttt{fig\_e5\_tuning.png}). Stage B on E1 with the five tunings of Table~\ref{tab:m_experiments}. Table: SoC RMSE, \% inside $\pm 3\sigma$ and mean NIS for each. Describe the slow/overconfident and jumpy regimes. State the final tuning values chosen and why. Revisit the remark in Section~\ref{sec:m_ekf_q} on the size of the derived $Q$ term.}
 
-\subsection{E6: Model-mismatch stress test and filter consistency}\label{sec:r_e6}
-% Design-stage check (Python, 20 seeds): CC 1.77%, A 5.09% (6%), B 2.39% (49%), C 4.30% (81%); stage A ends about -7.8%.
-\todo{Day 4 (figure \texttt{fig\_e6\_stress.png}). Slow pair $R_2 = 4$\,m$\Omega$, $C_2 = 10^5$\,F; stages A, B and C. Figure: innovations and NIS over time. Report mean NIS and mean NEES (and which states the NEES uses). Say whether the $\pm 3\sigma$ bands stay honest, and how much of the slow-RC gap of Section~\ref{sec:m_why_mismatch} ends up as SoC error.}
+E5 reran stage~B on the E1 scenario with $Q$ or $R$ scaled by 0.01 or 100 (Table~\ref{tab:r_e5}, Figure~\ref{fig:r_e5}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{E5: stage B on E1 with different tunings (seed 2).}
+  \label{tab:r_e5}
+  \small
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+    Tuning & RMSE & Final error & Inside $\pm 3\sigma$ & Mean NIS & Mean NEES \\
+    \midrule
+    $Q{\times}1$, $R{\times}1$ (chosen) & 1.06\% & $-1.92\%$ & 100\% & 0.51  & 2.12 \\
+    $Q{\times}0.01$  & 0.67\% & $-1.27\%$ & 94\%  & 0.54  & 2.41 \\
+    $Q{\times}100$   & 2.35\% & $-3.92\%$ & 100\% & 0.32  & 0.66 \\
+    $R{\times}0.01$  & 2.77\% & $-4.19\%$ & 30\%  & 32.34 & 53.55 \\
+    $R{\times}100$   & 1.69\% & $-2.56\%$ & 100\% & 0.01  & 0.52 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{itemize}
+  \item \textbf{$Q{\times}100$:} the filter distrusts its model, so it follows the voltage noise. Its error is jumpy and it is less accurate (RMSE 2.35\%). The band is honest but wider than needed (NIS 0.32).
+  \item \textbf{$Q{\times}0.01$:} the filter trusts its model more. In this run it was slightly more accurate (RMSE 0.67\%), but its band held the truth only 94\% of the time: it has less margin for the model errors it does not know about.
+  \item \textbf{$R{\times}0.01$:} the filter believes every wiggle of the voltage. During the first 30\,s, before $R_0$ has been learned at the take-off current step, its SoC error swung down to about $-13\%$ (Figure~\ref{fig:r_e5}). It was badly overconfident: 30\% inside its band, mean NEES 53.55. Its mean NIS of 32.34, far above 1, flags the mistuning clearly.
+  \item \textbf{$R{\times}100$:} the filter barely uses the voltage. It is smooth but slower to correct (RMSE 1.69\%), and its band is far too wide (NIS 0.01, NEES 0.52). With the RTH rule, such a band would make the drone turn back needlessly early.
+\end{itemize}
+The chosen tuning was kept. $Q{\times}0.01$ was slightly more accurate in this single run, but it gave up honesty, and the RTH rule relies on $\sigma_{\text{SoC}}$. E5 also shows what NIS can and cannot detect. It flags a wrongly set $R$ clearly ($32 \gg 1$), because that makes the innovations larger than the filter expects. It cannot flag a biased model: in E1 stage~A had a normal-looking NIS but a biased SoC (Section~\ref{sec:r_e1}).
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day4_e5_tuning.png}
+  \caption{E5, stage B with five tunings. Top: SoC error over the flight. Bottom: RMSE (bars) and share of time the truth was inside the band (line). Notice the $-13\%$ excursion of $R{\times}0.01$ during take-off and its low band coverage, and that $Q{\times}0.01$ is the most accurate but the only other tuning below 100\% coverage.}
+  \label{fig:r_e5}
+\end{figure}
+
+\subsection{E6: Model-mismatch stress test}\label{sec:r_e6}
+
+In E6 the true battery's slow RC pair was set to the original, strong value ($R_2 = 4$\,m$\Omega$, $C_2 = 10^5$\,F, $\tau_2 = 400$\,s), about 2.7 times larger in resistance than the default. Table~\ref{tab:r_e6} and Figure~\ref{fig:r_e6} show the results.
+
+\begin{table}[htbp]
+  \centering
+  \caption{E6: strong model mismatch ($R_2 = 4$\,m$\Omega$), seed 2.}
+  \label{tab:r_e6}
+  \small
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+    Estimator & RMSE & Final error & Inside $\pm 3\sigma$ & Mean NIS & Mean NEES \\
+    \midrule
+    Charge counting & 2.33\% & $-3.41\%$ & -- & -- & -- \\
+    EKF stage A     & 5.11\% & $-7.91\%$ & 2\%  & 0.71 & 406 \\
+    EKF stage B     & 2.48\% & $-3.75\%$ & 44\% & 0.53 & 11.8 \\
+    EKF stage C     & 4.60\% & $-4.99\%$ & 75\% & 0.52 & 5.56 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+All three filters degraded. The large unmodelled slow drop pulls the voltage down over the flight, and each filter reads part of it as a lower SoC. Stage~A ended at $-7.91\%$ with a NEES of 406. Stage~C drifted to about $-8\%$ around 12\,minutes, leaving its own band, and partly recovered to $-4.99\%$ at landing. Stage~B was about as accurate as charge counting, and stages A and C were worse. Charge counting is not affected at all, because the slow RC pair changes only the voltage, not the charge drawn. None of the filters was consistent: the best band, stage~C's, held the truth 75\% of the time. This is the honest limit of the method: when the filter's model is too wrong, the voltage feedback misleads the EKF, and it becomes biased and overconfident. Section~\ref{sec:d_mismatch} discusses remedies.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day4_e6_stress.png}
+  \caption{E6, strong model mismatch. SoC error of charge counting and stages A, B and C, with the stage-C $\pm 3\sigma$ band. Notice that all EKF stages drift low, that stage C leaves its band around 12 minutes, and that charge counting, which ignores the voltage, is as good as the best filter here.}
+  \label{fig:r_e6}
+\end{figure}
 
 \subsection{E7: Flat region of the OCV curve}\label{sec:r_e7}
-% Design-stage check (Python, seed 2, after 1 min), mean sigma_SoC by true-SoC band: stage C 85-95% 1.52, 70-85% 1.60, 50-70% 1.68, 30-50% 1.93, 20-30% 2.13 (slope 8.1 -> 5.0 mV per 1%); stage B shrinks 0.92 -> 0.71.
-\todo{Day 4 (figure \texttt{fig\_e7\_flat\_ocv.png}). Stages B and C on E1, after the first minute. Figure: $\sigma_{\text{SoC}}$ against true SoC with the OCV slope. Report both stages honestly: stage C's uncertainty is expected to grow as the curve flattens, while stage B's may shrink as $R_0$ is learned. Show whether the uncertainty grows where the OCV slope is small (Figure~\ref{fig:r_ocv}) and how the risk rule reacts.}
+
+Figure~\ref{fig:r_e7} plots $\sigma_{\text{SoC}}$ against the true SoC for stages B and C during the E1 flight, after the first minute (the flight runs from about 88\% to 18\%), together with the OCV slope.
+
+\textbf{Stage C} behaves as theory predicts (Section~\ref{sec:bg_gain}). Its uncertainty rises from about 1.5\% to about 2.2\% as the OCV slope falls from about 8 to about 5\,mV per 1\% SoC. The figure contains a sharper test of the cause. Around 65--70\% SoC the OCV slope has a local bump (to about 8.3\,mV per 1\%), and exactly there stage~C's $\sigma_{\text{SoC}}$ dips briefly, from about 1.67\% to about 1.55\%. The uncertainty tracks the slope, not merely the time since take-off: where the voltage says more about the SoC, the filter becomes more certain.
+
+\textbf{Stage B} behaves differently: its uncertainty falls steadily from about 0.95\% to about 0.70\%. Stage~B's only parameter is $R_0$, and the information it collects about $R_0$ at every current change keeps reducing the SoC uncertainty, which masks the flat-region effect. Both behaviours are reported because they show that the stated uncertainty depends on the whole filter structure, not on the OCV curve alone. For the RTH rule, stage~C's behaviour is the desirable one: it becomes more cautious exactly where the voltage is a weaker clue.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day4_e7_flat_ocv.png}
+  \caption{E7: SoC uncertainty $\sigma_{\text{SoC}}$ of stages B and C against the true SoC (the flight runs from left to right), with the OCV slope on the right axis. Notice that stage C's uncertainty grows as the slope falls, and dips briefly around 65--70\% SoC exactly where the slope has a local bump; stage B's uncertainty falls steadily instead.}
+  \label{fig:r_e7}
+\end{figure}
 
 \subsection{E8: Comparison of filter stages}\label{sec:r_e8}
-\todo{Day 4 (figure \texttt{fig\_e8\_summary.png}, table \texttt{e8\_summary.csv}). 20 seeds $\times$ E1, E2, E3, E4, E6 $\times$ stages A, B, C plus charge counting. Table: mean RMSE, \% inside $\pm 3\sigma$, final error, mean NIS and NEES per scenario and method. Compare with the design check of Table~\ref{tab:m_stagecheck} and confirm (or revise) the choice of stage C as the decision filter.}
+
+E8 flew each of five scenarios with 20 seeds and all three stages, 300 flights in total, in about 20\,s of MATLAB time. Table~\ref{tab:r_e8} gives the mean RMSE and the band coverage, Table~\ref{tab:r_e8_extra} the mean final error and the mean NEES, and Figure~\ref{fig:r_e8} shows the RMSE and coverage graphically.
+
+\begin{table}[htbp]
+  \centering
+  \caption[E8: mean SoC RMSE and band coverage.]{E8: mean SoC RMSE over 20 flights per scenario, with the share of time the truth was inside the filter's $\pm 3\sigma$ band in brackets.}
+  \label{tab:r_e8}
+  \small
+  \begin{tabular}{@{}lcccc@{}}
+    \toprule
+    Scenario & Charge counting & Stage A & Stage B & Stage C \\
+    \midrule
+    E1 Nominal          & 1.83\%  & 2.46\% (16\%) & 1.03\% (100\%) & 1.41\% (100\%) \\
+    E2 Wrong start      & 13.84\% & 2.47\% (17\%) & 1.64\% (100\%) & 1.80\% (100\%) \\
+    E3 Bias 0.8\,A      & 2.64\%  & 2.31\% (22\%) & 1.27\% (91\%)  & 1.24\% (100\%) \\
+    E4 Aged battery     & 6.17\%  & 1.39\% (46\%) & 4.72\% (27\%)  & 1.03\% (100\%) \\
+    E6 Strong mismatch  & 1.83\%  & 5.10\% (6\%)  & 2.37\% (50\%)  & 4.16\% (83\%) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \caption[E8: mean final error and mean NEES.]{E8: mean final SoC error at landing, and mean NEES on the SoC in brackets (about 1 for an honest filter), over 20 flights per scenario (from \texttt{e8\_summary.csv}).}
+  \label{tab:r_e8_extra}
+  \small
+  \begin{tabular}{@{}lcccc@{}}
+    \toprule
+    Scenario & Charge counting & Stage A & Stage B & Stage C \\
+    \midrule
+    E1 Nominal          & $-2.87\%$  & $-3.79\%$ (91.5)  & $-1.82\%$ (1.95) & $-1.87\%$ (0.56) \\
+    E2 Wrong start      & $+12.65\%$ & $-2.39\%$ (92.9)  & $-0.58\%$ (1.32) & $+0.08\%$ (0.46) \\
+    E3 Bias 0.8\,A      & $-4.29\%$  & $-3.78\%$ (83.0)  & $-2.38\%$ (2.91) & $-1.67\%$ (0.43) \\
+    E4 Aged battery     & $+10.69\%$ & $+1.91\%$ (30.2)  & $+8.34\%$ (45.6) & $+0.16\%$ (0.40) \\
+    E6 Strong mismatch  & $-2.87\%$  & $-7.82\%$ (403.8) & $-3.69\%$ (10.8) & $-4.69\%$ (4.69) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% TODO: replace with re-run figure (the current PNG uses different bar colours in the two panels, and its legend hides the E1 stage-A bar).
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day4_e8_summary.png}
+  \caption{E8, 20 flights per scenario. Top: mean SoC RMSE of charge counting and stages A, B and C. Bottom: share of time the truth was inside each filter's $\pm 3\sigma$ band, with the ideal 99.7\% marked. Notice that stage C is the only filter that reaches about 100\% coverage in every scenario except the strong mismatch E6, and that stage B's accuracy and coverage both collapse on the aged battery (E4).}
+  \label{fig:r_e8}
+\end{figure}
+
+The 20-flight averages confirm the single runs and the design-stage checks of Table~\ref{tab:m_stagecheck}.
+\begin{itemize}
+  \item \textbf{Stage C is the only consistent filter in E1--E4.} Its band held the truth 100\% of the time in all four scenarios, with mean RMSE between 1.03\% and 1.80\%. Its mean NEES (0.40--0.56) is below 1, so it is slightly cautious, in line with its mean NIS of about 0.49.
+  \item \textbf{Stage B is the most accurate on a healthy battery} (1.03\% in E1, 1.64\% in E2), but it fails on the aged battery: 4.72\% RMSE, 27\% coverage, a mean final error of $+8.34\%$ (optimistic) and a mean NEES of 45.6. It is also slightly overconfident with the larger bias (91\% coverage in E3).
+  \item \textbf{Stage A is never consistent} (6--46\% coverage, NEES 30--404), although its mean NIS stayed around 0.5--1.1. In E4 its accuracy looks good (1.39\%), but this is probably a coincidence of two errors cancelling: its resistance error pulls the SoC low (as in E1, final $-3.79\%$), while the aged capacity pushes it high.
+  \item \textbf{Charge counting} is badly affected by a wrong start (13.84\%) and an aged battery (6.17\%, optimistic). In E6 it gives exactly the same result as in E1, because the slow RC pair affects only the voltage.
+  \item \textbf{Under strong mismatch (E6) no filter is consistent} (at most 83\% coverage), and the most accurate filter there (stage~B, 2.37\%) does not beat charge counting (1.83\%).
+\end{itemize}
+
+\textbf{Conclusion for the decision filter.} Stage~C is the only filter whose uncertainty stayed honest in all of E1--E4, with an RMSE of 1.0--1.8\%. Stage~B is the most accurate on a healthy battery, but on an aged battery it becomes confidently optimistic, which is the dangerous failure for an RTH decision. The MATLAB results therefore confirm the design choice of Section~\ref{sec:m_ekf_choice}: stage~C will provide the SoC estimate and $\sigma_{\text{SoC}}$ for the RTH rule. The strong-mismatch case E6 remains a stated limitation (Section~\ref{sec:d_limitations}).
 
 %--------------------------------------------------------------------------------------------------
 \section{Return-to-home decisions on a single flight}\label{sec:r_single_rth}
