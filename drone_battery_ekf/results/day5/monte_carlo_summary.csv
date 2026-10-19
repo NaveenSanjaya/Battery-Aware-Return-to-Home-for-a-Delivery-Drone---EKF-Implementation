@@ -1,0 +1,5 @@
+policy,died_pct,reserve_broken_pct,unused_pct,deliveries
+A: voltage threshold,9.2,32.2,8.03938702712048,0.852
+B: charge counting,30.4,90.2,-4.13262706682602,1.558
+C: EKF estimate only,0,38,0.611719947308408,1.324
+D: EKF risk-aware,0,2.8,6.05347173463509,1.162
