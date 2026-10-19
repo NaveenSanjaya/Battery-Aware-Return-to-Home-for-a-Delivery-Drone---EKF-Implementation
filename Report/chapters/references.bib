@@ -1,7 +1,6 @@
 % References for the report. Sources are those listed in docs/project_guide.md, section 13.
-% Only fields that are known with confidence are filled in. Every "note = {TODO: ...}" field is
-% printed in the bibliography on purpose, so it cannot be forgotten: check the source, fix the
-% entry, then delete the note before submitting.
+% Fields were checked on 19 Oct 2026 against Crossref, the publishers' pages, HAL, KiltHub (figshare),
+% Mendeley Data and MATLAB Central. All fields were confirmed from those sources.
 
 %--------------------------------------------------------------------------------------------------
 % Filter and battery theory
@@ -27,7 +26,8 @@
   number  = {2},
   pages   = {262--276},
   year    = {2004},
-  note    = {TODO: verify pages and add DOI}
+  doi     = {10.1016/j.jpowsour.2004.02.032},
+  url     = {https://doi.org/10.1016/j.jpowsour.2004.02.032}
 }
 
 @article{plett2004part3,
@@ -38,21 +38,22 @@
   number  = {2},
   pages   = {277--292},
   year    = {2004},
-  note    = {TODO: verify volume, pages and add DOI}
+  doi     = {10.1016/j.jpowsour.2004.02.033},
+  url     = {https://doi.org/10.1016/j.jpowsour.2004.02.033}
 }
 
 @book{plett2015bms,
   author    = {Plett, Gregory L.},
   title     = {Battery Management Systems, Volume {II}: Equivalent-Circuit Methods},
   publisher = {Artech House},
-  year      = {2015},
-  note      = {TODO: verify year and edition}
+  year      = {2015}
 }
 
 @book{simon2006optimal,
   author    = {Simon, Dan},
   title     = {Optimal State Estimation: {K}alman, {$H_{\infty}$}, and Nonlinear Approaches},
-  publisher = {Wiley},
+  publisher = {Wiley-Interscience},
+  address   = {Hoboken, NJ},
   year      = {2006}
 }
 
@@ -61,49 +62,57 @@
   title       = {An Introduction to the {K}alman Filter},
   institution = {Department of Computer Science, University of North Carolina at Chapel Hill},
   number      = {TR 95-041},
-  year        = {2006},
-  note        = {TODO: verify year of the version used}
+  year        = {2004},
+  note        = {Updated 5 April 2004},
+  url         = {https://techreports.cs.unc.edu/papers/95-041.pdf}
 }
 
 @misc{mathworks_ekf_battery,
+  author       = {Siampis, Efstathios},
   title        = {Extended {K}alman Filter with Battery Estimation Example},
-  howpublished = {MATLAB Central File Exchange, file 105855},
+  howpublished = {MATLAB Central File Exchange, version 1.0.0},
+  year         = {2022},
   url          = {https://www.mathworks.com/matlabcentral/fileexchange/105855-extended-kalman-filter-with-battery-estimation-example},
-  note         = {TODO: add author, year and access date}
+  note         = {Accessed 19 Oct. 2026}
 }
 
 %--------------------------------------------------------------------------------------------------
 % Drone battery estimation (related work)
 %--------------------------------------------------------------------------------------------------
 
-@misc{hal_uav_ekf,
-  title        = {{SoC} estimation using an extended {K}alman filter for {UAV} applications},
-  howpublished = {HAL open archive, hal-01537730},
-  url          = {https://hal.archives-ouvertes.fr/hal-01537730},
-  note         = {TODO: add authors, year and venue}
+@inproceedings{hal_uav_ekf,
+  author    = {Schacht-Rodr{\'i}guez, Ricardo and Ortiz-Torres, Gerardo and Garc{\'i}a-Beltr{\'a}n, Carlos Daniel and Astorga-Zaragoza, Carlos and Ponsart, Jean-Christophe and Theilliol, Didier},
+  title     = {{SoC} estimation using an extended {K}alman filter for {UAV} applications},
+  booktitle = {Proc. International Conference on Unmanned Aircraft Systems (ICUAS)},
+  address   = {Miami, FL, USA},
+  pages     = {179--187},
+  year      = {2017},
+  doi       = {10.1109/ICUAS.2017.7991381},
+  url       = {https://hal.archives-ouvertes.fr/hal-01537730}
 }
 
 @article{ijphm_flight_time,
+  author  = {Hogge, Edward F. and Bole, Brian M. and Vazquez, Sixto L. and Kulkarni, Chetan S. and Strom, Thomas H. and Hill, Boyd L. and Smalling, Kyle M. and Quach, Cuong C.},
   title   = {Verification of prognostic algorithms to predict remaining flying time for electric unmanned vehicles},
   journal = {International Journal of Prognostics and Health Management},
+  volume  = {9},
+  number  = {1},
+  year    = {2018},
+  doi     = {10.36001/ijphm.2018.v9i1.2700},
   url     = {https://papers.phmsociety.org/index.php/ijphm/article/view/2700},
-  note    = {TODO: add authors (possibly E. F. Hogge et al.), year, volume and pages}
-}
-
-@misc{nasa_flight_time,
-  title        = {{NASA} Technical Reports Server document 20190025952},
-  howpublished = {NASA Technical Reports Server},
-  url          = {https://ntrs.nasa.gov/api/citations/20190025952/downloads/20190025952.pdf},
-  note         = {TODO: replace with the report's real title, authors, report number and year}
+  note    = {Accepted manuscript also available as NASA Technical Reports Server document 20190025952}
 }
 
 @article{purdue_jate_comparison,
-  title   = {[{TODO}: exact title] {EKF}, {UKF} and {C}oulomb counting compared on delivery and inspection missions},
+  author  = {Dibbern, Hanna and Ro{\ss}berg, Morten and Werner, Claudia},
+  title   = {Comparative evaluation of investigation methods for estimating the load-dependent state of charge and end of discharge of a multirotor {UAV} battery},
   journal = {Journal of Aviation Technology and Engineering},
   volume  = {12},
   number  = {2},
-  url     = {https://docs.lib.purdue.edu/jate/vol12/iss2/4},
-  note    = {TODO: add exact title, authors, year and pages}
+  pages   = {Article 4},
+  year    = {2023},
+  doi     = {10.7771/2159-6670.1293},
+  url     = {https://docs.lib.purdue.edu/jate/vol12/iss2/4}
 }
 
 %--------------------------------------------------------------------------------------------------
@@ -111,30 +120,41 @@
 %--------------------------------------------------------------------------------------------------
 
 @article{cmu_dji_dataset,
+  author  = {Rodrigues, Thiago A. and Patrikar, Jay and Choudhry, Arnav and Feldgoise, Jacob and Arcot, Vaibhav and Gahlaut, Aradhana and Lau, Sophia and Moon, Brady and Wagner, Bastian and Matthews, H. Scott and Scherer, Sebastian and Samaras, Constantine},
   title   = {In-flight positional and energy use data set of a {DJI} {M}atrice 100 quadcopter for small package delivery},
   journal = {Scientific Data},
+  volume  = {8},
+  pages   = {Article 155},
   year    = {2021},
-  url     = {https://arxiv.org/pdf/2103.13313},
-  note    = {TODO: add authors (possibly T. A. Rodrigues et al.), volume and article number}
+  doi     = {10.1038/s41597-021-00930-x},
+  url     = {https://doi.org/10.1038/s41597-021-00930-x}
 }
 
 @misc{cmu_evtol_dataset,
+  author       = {Bills, Alexander and Viswanathan, Venkatasubramanian and Sripad, Shashank and Frank, Evan and Charles, Devin and Fredericks, William Leif},
   title        = {{eVTOL} Battery Dataset},
-  howpublished = {Carnegie Mellon University, KiltHub repository},
-  url          = {https://kilthub.cmu.edu/articles/dataset/eVTOL_Battery_Dataset/14226830},
-  note         = {TODO: add authors and year}
+  howpublished = {Carnegie Mellon University, KiltHub repository, version 3},
+  year         = {2021},
+  doi          = {10.1184/R1/14226830.v3},
+  url          = {https://doi.org/10.1184/R1/14226830.v3}
 }
 
 @article{cmu_evtol_paper,
+  author  = {Bills, Alexander and Sripad, Shashank and Fredericks, Leif and Guttenberg, Matthew and Charles, Devin and Frank, Evan and Viswanathan, Venkatasubramanian},
   title   = {A battery dataset for electric vertical takeoff and landing aircraft},
   journal = {Scientific Data},
-  url     = {https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10238407/},
-  note    = {TODO: verify journal; add authors (possibly A. Bills et al.), year, volume and article number}
+  volume  = {10},
+  pages   = {Article 344},
+  year    = {2023},
+  doi     = {10.1038/s41597-023-02180-5},
+  url     = {https://doi.org/10.1038/s41597-023-02180-5}
 }
 
 @misc{mcmaster_lg_hg2,
+  author       = {Kollmeyer, Phillip and Naguib, Mina and Skells, Michael},
   title        = {{LG} {18650HG2} Li-ion Battery Data},
   howpublished = {Mendeley Data, McMaster University, version 2},
-  url          = {https://data.mendeley.com/datasets/b5mj79w5w9/2},
-  note         = {TODO: add authors (possibly P. Kollmeyer et al.) and year}
+  year         = {2020},
+  doi          = {10.17632/b5mj79w5w9.2},
+  url          = {https://doi.org/10.17632/b5mj79w5w9.2}
 }

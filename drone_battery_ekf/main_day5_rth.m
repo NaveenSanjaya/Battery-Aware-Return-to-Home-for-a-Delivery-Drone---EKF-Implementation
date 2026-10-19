@@ -144,6 +144,8 @@ for q = 1:4
     subplot(2,2,q);
     hb = bar(vals{q}, 'FaceColor', 'flat');  hb.CData = pcol;  grid on;
     set(gca, 'XTickLabel', policies);
+    lo = min(0, min(vals{q}));  hi = max(vals{q});
+    ylim([1.25*lo - 0.5*(lo < 0), 1.2*hi + 0.5]);       % headroom so value labels do not hit the title
     title(ttl{q});
     for j = 1:4
         text(j, vals{q}(j), sprintf('%.1f', vals{q}(j)), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');

@@ -2,7 +2,7 @@
 % Chapter 3: Methodology   (the \chapter command is in main.tex)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-This chapter describes the method in equations: the overall system (Section~\ref{sec:m_overview}), the simulated battery, sensors and mission (Sections~\ref{sec:m_truth_vs_filter}--\ref{sec:m_mission}), the EKF (Section~\ref{sec:m_ekf}), the return-to-home rule (Section~\ref{sec:m_rth}) and the planned experiments (Section~\ref{sec:m_experiments}). The symbols are collected in Table~\ref{tab:m_symbols}.
+This chapter describes the method in equations: the overall system (Section~\ref{sec:m_overview}), the simulated battery, sensors and mission (Sections~\ref{sec:m_truth_vs_filter}--\ref{sec:m_mission}), the EKF (Section~\ref{sec:m_ekf}), the return-to-home rule (Section~\ref{sec:m_rth}) and the experiments (Section~\ref{sec:m_experiments}). The symbols are collected in Table~\ref{tab:m_symbols}.
 
 %--------------------------------------------------------------------------------------------------
 \section{System overview}\label{sec:m_overview}
@@ -101,8 +101,7 @@ with all parameters at their true values (Table~\ref{tab:m_params}). Equation~\e
 
 \subsection{The OCV curve}\label{sec:m_ocv}
 
-Both models use the same OCV table (Table~\ref{tab:m_ocv}), a representative curve for a lithium-ion (NMC) cell: steep near empty and flatter in the middle. Values between the table points are found by shape-preserving piecewise cubic Hermite interpolation (MATLAB's \texttt{pchip}). It gives a smooth curve with a continuous slope and no overshoot, so the slope used by the EKF does not jump between table points.
-% TODO (student): cite the published source of the OCV table, or state clearly that it is representative.
+Both models use the same OCV table (Table~\ref{tab:m_ocv}), a representative curve for a lithium-ion (NMC) cell: steep near empty and flatter in the middle. Values between the table points are found by shape-preserving piecewise cubic Hermite interpolation (MATLAB's \texttt{pchip}). It gives a smooth curve with a continuous slope and no overshoot, so the slope used by the EKF does not jump between table points. The table is representative of the shape of an NMC cell's curve; it was not measured on a specific cell, and Section~\ref{sec:d_limitations} discusses what this means.
 
 \begin{table}[htbp]
   \centering
@@ -122,14 +121,14 @@ The slope $d\,\mathrm{OCV}/d\,\mathrm{SoC}$, which the EKF needs, is computed by
 \begin{equation}
   \frac{d\,\mathrm{OCV}}{d\,\mathrm{SoC}}(s) \approx
   \frac{\mathrm{OCV}(s^{+}) - \mathrm{OCV}(s^{-})}{s^{+} - s^{-}},
-  \qquad s^{+} = \min(s + 0.005,\, 1),\quad s^{-} = \max(s - 0.005,\, 0).
+  \quad s^{+} = \min(s + 0.005,\, 1),\; s^{-} = \max(s - 0.005,\, 0).
   \label{eq:m_ocv_slope}
 \end{equation}
 The $\min$ and $\max$ make the difference one-sided at the ends of the table, so the slope never uses points outside it.
 
 \subsection{Parameters: truth versus filter}\label{sec:m_params}
 
-Table~\ref{tab:m_params} compares the two models. In the default configuration $R_0$, $R_1$ and $C_1$ are offset by fixed amounts of 10\%. The Monte Carlo study (Section~\ref{sec:m_experiments}) will instead draw them at random, up to $\pm 15\%$.
+Table~\ref{tab:m_params} compares the two models. In the default configuration $R_0$, $R_1$ and $C_1$ are offset by fixed amounts of 10\%. The Monte Carlo study (Section~\ref{sec:m_experiments}) instead draws $R_0$, $R_1$, $C_1$ and $R_2$ at random, each within $\pm 15\%$ of its default true value.
 
 \begin{table}[htbp]
   \centering
@@ -169,7 +168,7 @@ The drone measures the current and the terminal voltage once per second:
   I_{m,k} &= I_k + b + w_{I,k}, & w_{I,k} &\sim \mathcal{N}(0, \sigma_I^2), \label{eq:m_sensor_i}\\
   V_{m,k} &= V_k + v_k,         & v_k &\sim \mathcal{N}(0, \sigma_V^2). \label{eq:m_sensor_v}
 \end{align}
-The current sensor has a constant bias $b$ and random noise with standard deviation $\sigma_I = 0.2$\,A. In the Day~2 configuration $b = +0.5$\,A, so the sensor reads too high; the Monte Carlo study will draw $b$ between $-1$ and $+1$\,A. The voltage sensor has no bias and noise of $\sigma_V = 10$\,mV per cell. New noise samples are drawn independently at every step.
+The current sensor has a constant bias $b$ and random noise with standard deviation $\sigma_I = 0.2$\,A. In the default configuration $b = +0.5$\,A, so the sensor reads too high; experiment E3 uses $+0.8$\,A, and the Monte Carlo study draws $b$ between $-1$ and $+1$\,A. The voltage sensor has no bias and noise of $\sigma_V = 10$\,mV per cell. New noise samples are drawn independently at every step.
 
 %--------------------------------------------------------------------------------------------------
 \section{Mission and drone model}\label{sec:m_mission}
@@ -195,7 +194,7 @@ The drone starts at home, at position $(0, 0)$, and visits a list of drop-off po
   \end{tabular}
 \end{table}
 
-Here $w$ is a wind factor: $w = 0.2$ means a headwind that needs 20\% more cruise current. It is zero in the Day~2 test; the Monte Carlo study will draw it within $\pm 20\%$. Two routes are defined. The \emph{short} route has three drop-offs at (1200, 400), (2200, $-400$) and (3000, 600)\,m and is meant to finish with charge to spare. The \emph{long} route has six drop-offs reaching 9\,km east of home and is designed to be too long for one battery, so that the RTH rule must act.
+Here $w$ is a wind factor: $w = 0.2$ means a headwind that needs 20\% more cruise current. It is zero in experiments E1--E8; the demonstration mission uses $+10\%$ and the Monte Carlo study draws it within $\pm 20\%$. Two routes are defined. The \emph{short} route has three drop-offs at (1200, 400), (2200, $-400$) and (3000, 600)\,m and is meant to finish with charge to spare. The \emph{long} route has six drop-offs reaching 9\,km east of home and is designed to be too long for one battery, so that the RTH rule must act.
 
 Real flight current is never perfectly constant: gusts and manoeuvres make it wander. The simulator adds a slowly varying random load $\varepsilon_k$ to the demand whenever the drone is flying:
 \begin{equation}
@@ -287,7 +286,7 @@ Three points are worth noting.
 \begin{itemize}
   \item $G_k$ depends on the capacity estimate, so $Q_k$ is recomputed at every step.
   \item The first term is not diagonal. Its SoC--$V_1$ entry is negative: one burst of current noise lowers the true SoC and raises the true $V_1$ at the same time, and the filter knows that these two errors are linked.
-  \item With the tuning values of Table~\ref{tab:m_tuning}, the derived term is small compared with the diagonal terms. For the SoC it is $(1/18\,000)^2 \times 0.2^2 \approx 1.2 \times 10^{-10}$ per step, against $q_{\text{SoC}} = 10^{-8}$. The diagonal terms will dominate unless tuning makes them smaller; experiment E5 explores this.
+  \item With the tuning values of Table~\ref{tab:m_tuning}, the derived term is small compared with the diagonal terms. For the SoC it is $(1/18\,000)^2 \times 0.2^2 \approx 1.2 \times 10^{-10}$ per step, against $q_{\text{SoC}} = 10^{-8}$. The diagonal terms therefore dominate; experiment E5 shows the effect of scaling them.
 \end{itemize}
 
 \subsection{Update and the Jacobian H}\label{sec:m_ekf_h}
@@ -392,7 +391,7 @@ The value $\sigma_{\text{model}} = 10$\,mV was chosen, and it is used for all th
 
 \subsection{Choosing the filter for decisions}\label{sec:m_ekf_choice}
 
-The investigation above chose stage~B as the most accurate filter on a healthy battery. The RTH rule, however, will face batteries that are not healthy: the Monte Carlo study includes aged batteries and biased sensors (Table~\ref{tab:m_mc_factors}). Before the final experiments, all three stages and charge counting were therefore compared on the five scenarios of experiment E8, again in the Python port (Table~\ref{tab:m_stagecheck}). These are \textbf{design-stage checks}; the MATLAB results of E8 are reported in Section~\ref{sec:r_e8}.
+The investigation above chose stage~B as the most accurate filter on a healthy battery. The RTH rule, however, must cope with batteries that are not healthy: the Monte Carlo study includes aged batteries and biased sensors (Table~\ref{tab:m_mc_factors}). Before the final experiments, all three stages and charge counting were therefore compared on the five scenarios of experiment E8, again in the Python port (Table~\ref{tab:m_stagecheck}). These are \textbf{design-stage checks}; the MATLAB results of E8 are reported in Section~\ref{sec:r_e8}.
 
 \begin{table}[htbp]
   \centering
@@ -423,7 +422,7 @@ The investigation above chose stage~B as the most accurate filter on a healthy b
 \end{equation}
 and the voltage, through the SoC, constrains only this rate. Many pairs $(b, C_n)$ give the same rate at the currents of one flight, so the rate is observable while $b$ and $C_n$ separately are not. In the E4 run above, the wrong-signed bias makes the estimated corrected current too large, which compensates for the capacity estimate still being too high. At a true current of 15\,A, the filter's estimated rate is $(15 + 0.5 + 0.80)/4.49 \approx 3.63$ per hour against the true $15/4.25 \approx 3.53$ per hour: only about 3\% apart, although the bias is 1.3\,A wrong.
 
-\textbf{Decision.} Stage~C will drive the RTH decision. The RTH rule turns $\sigma_{\text{SoC}}$ directly into a safety margin, and the Monte Carlo study includes aged batteries, so a filter whose uncertainty stays honest matters more than the last 0.5\% of accuracy on a healthy battery. The lesson is that \emph{the most accurate filter is not always the safest one to make decisions with}. Stage~B remains the most accurate estimator of a healthy battery, and both are reported in Chapter~\ref{ch:results}.
+\textbf{Decision.} Stage~C drives the RTH decision. The RTH rule turns $\sigma_{\text{SoC}}$ directly into a safety margin, and the Monte Carlo study includes aged batteries, so a filter whose uncertainty stays honest matters more than the last 0.5\% of accuracy on a healthy battery. The lesson is that \emph{the most accurate filter is not always the safest one to make decisions with}. Stage~B remains the most accurate estimator of a healthy battery, and both are reported in Chapter~\ref{ch:results}.
 
 Two cheap additions would make $b$ and $C_n$ individually observable, and are left as future work: calibrating the current-sensor bias at rest before take-off, when the true current is known to be zero; and estimating the capacity between flights, from the charge drawn (ampere-hours) and the SoC read from the resting voltage before and after the flight.
 
@@ -436,7 +435,7 @@ The initial estimate is
   \hat{x}_0 = \begin{bmatrix} \widehat{\mathrm{SoC}}_0 & 0 & 0 & 5.0\text{\,Ah} & 8\text{\,m}\Omega \end{bmatrix}^{\top}:
   \label{eq:m_x0}
 \end{equation}
-no polarisation (the battery has rested), no known bias, and the nominal capacity and resistance. In normal use the starting SoC is read from the resting voltage before take-off. The battery is at rest, so the measured voltage is the OCV plus sensor noise, and an inverse lookup of the OCV table gives the SoC. Its uncertainty is then small, $\pm 3\%$ (one standard deviation). In the Day~4 experiments (E3--E8, including the E1 and E2 scenarios repeated in E8) the resting voltage is the average of 10 readings, which reduces its noise by $\sqrt{10} \approx 3$, to about 3\,mV, or roughly 0.3\% SoC near full charge, where the curve rises by about 10\,mV per 1\% SoC. The Day~3 runs of E1 and E2 (Sections~\ref{sec:r_e1} and~\ref{sec:r_e2}) used a single reading, and the start about 3\% low seen there motivated this change. The wrong-start test (E2) instead assumes a full battery with a large uncertainty of $\pm 20\%$, to see how the filter recovers.
+no polarisation (the battery has rested), no known bias, and the nominal capacity and resistance. In normal use the starting SoC is read from the resting voltage before take-off. The battery is at rest, so the measured voltage is the OCV plus sensor noise, and an inverse lookup of the OCV table gives the SoC. Its uncertainty is then small, $\pm 3\%$ (one standard deviation). In experiments E3--E8 (including the E1 and E2 scenarios repeated in E8) and in the return-to-home missions, the resting voltage is the average of 10 readings, which reduces its noise by $\sqrt{10} \approx 3$, to about 3\,mV, or roughly 0.3\% SoC near full charge, where the curve rises by about 10\,mV per 1\% SoC. The first runs of E1 and E2 (Sections~\ref{sec:r_e1} and~\ref{sec:r_e2}) used a single reading, and the start about 3\% low seen there motivated this change. The wrong-start test (E2) instead assumes a full battery with a large uncertainty of $\pm 20\%$, to see how the filter recovers.
 
 The initial uncertainty (one standard deviation) of the other states is $\pm 10$\,mV for $V_1$, $\pm 1$\,A for the bias, $\pm 0.5$\,Ah for the capacity and $\pm 4$\,m$\Omega$ for the resistance, so for a stage that learns all states
 \begin{equation}
@@ -504,7 +503,7 @@ The drone flies home in a straight line at $v_{\text{cruise}} = 10$\,m/s and the
   t_{\text{cruise},k} = \frac{d_{\text{home},k}}{v_{\text{cruise}}} .
   \label{eq:m_thome}
 \end{equation}
-The charge this needs is computed with the same drain rate that the filter uses, $(I_m - \hat{b})/\hat{C}_n$. Day~4 showed that this combination is what the voltage makes observable, while $\hat{b}$ and $\hat{C}_n$ separately are not reliable (Section~\ref{sec:m_ekf_choice}, Equation~\eqref{eq:m_rate}). Using $\hat{C}_n$ on its own with a nominal current could misjudge the trip for an aged battery. The SoC needed to get home is therefore
+The charge this needs is computed with the same drain rate that the filter uses, $(I_m - \hat{b})/\hat{C}_n$. Experiments E3, E4 and E8 showed that this combination is what the voltage makes observable, while $\hat{b}$ and $\hat{C}_n$ separately are not reliable (Section~\ref{sec:m_ekf_choice}, Equation~\eqref{eq:m_rate}). Using $\hat{C}_n$ on its own with a nominal current could misjudge the trip for an aged battery. The SoC needed to get home is therefore
 \begin{equation}
   \Delta\mathrm{SoC}_{\text{home},k} = \frac{\left(\hat{I}_{\text{cr},k} - \hat{b}_k\right) t_{\text{cruise},k} + I_{\text{land}}\, t_{\text{land}}}{3600\, \hat{C}_{n,k}} ,
   \label{eq:m_dsoc_home}
@@ -624,9 +623,9 @@ Eight experiments build understanding of the filter (Table~\ref{tab:m_experiment
 
 \begin{table}[htbp]
   \centering
-  \caption{Random conditions drawn for each Monte Carlo mission (\texttt{sim/draw\_conditions.m}), uniformly within each range.}
+  \caption[Random conditions drawn for each Monte Carlo mission.]{Random conditions drawn for each Monte Carlo mission (\texttt{sim/draw\_conditions.m}), uniformly within each range.}
   \label{tab:m_mc_factors}
-  \begin{tabular}{@{}ll@{}}
+  \begin{tabular}{@{}p{0.42\textwidth}p{0.52\textwidth}@{}}
     \toprule
     Factor & Range per mission \\
     \midrule
@@ -640,7 +639,7 @@ Eight experiments build understanding of the filter (Table~\ref{tab:m_experiment
   \end{tabular}
 \end{table}
 
-The working hypothesis is that policy D breaks the reserve in no more than about 5\% of missions while wasting little battery; that C, which aims exactly at the reserve, breaks it often; that B dies when the battery is aged or the sensor reads low; and that A either wastes battery or dies, depending on its threshold. If the results differ, they will be reported and explained.
+The working hypothesis is that policy D breaks the reserve in no more than about 5\% of missions while wasting little battery; that C, which aims exactly at the reserve, breaks it often; that B dies when the battery is aged or the sensor reads low; and that A either wastes battery or dies, depending on its threshold. Section~\ref{sec:r_mc} compares the outcome with this hypothesis.
 
 \textbf{Threshold sweep.} On the first 200 missions, policy D is rerun with $p^{\ast} =$ 80\%, 90\%, 95\%, 99\% and 99.9\%, and policy A with $V_{\text{thr}} =$ 3.40, 3.45, 3.50, 3.55 and 3.60\,V. Plotting the share of missions that broke the reserve against the mean unused battery gives a trade-off curve for each policy (bottom-left is best). It shows an operator what each extra ``nine'' of safety costs in range, and whether any voltage threshold can match the risk-aware rule.
 

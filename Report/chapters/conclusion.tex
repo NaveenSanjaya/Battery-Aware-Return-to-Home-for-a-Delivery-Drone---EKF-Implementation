@@ -1,18 +1,21 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Chapter 7: Conclusion   (the \chapter command is in main.tex)
-% SKELETON: to be written last. Answer each objective with numbers from Chapter 5.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\todo{One paragraph restating the problem and the approach: an EKF that estimates SoC and polarisation voltage while learning the cell resistance (with an observability study of also learning sensor bias and capacity), and a risk-aware RTH rule that uses the SoC uncertainty.}
+This project set out to let a delivery drone decide for itself when to fly home, using only a noisy, biased current sensor and a voltage sensor whose readings sag under load. It combined an Extended Kalman Filter, which estimates the battery's state of charge together with its uncertainty, with a return-to-home rule that turns that uncertainty into a safety margin. Both were tested in a MATLAB simulator whose battery deliberately differs from the filter's model.
 
 \section{Answers to the objectives}\label{sec:c_objectives}
-\todo{One short paragraph per objective of Section~\ref{sec:intro_objectives}, each with its key number:}
-\begin{enumerate}
-  \item Simulator: \todo{summarise the verification of Section~\ref{sec:r_sim}.}
-  \item EKF: \todo{SoC RMSE of stages A and B vs charge counting; convergence from a wrong start; $R_0$ learning; what stage C showed about bias and capacity; NEES/NIS.}
-  \item Risk-aware RTH rule: \todo{how its decisions differ from the estimate-only rule.}
-  \item Evaluation: \todo{Monte Carlo failure rate and unused battery for policies A--D; the threshold-sweep trade-off.}
-\end{enumerate}
 
-\section{Main limitations and next steps}\label{sec:c_next}
-\todo{Two or three sentences, pointing to Section~\ref{sec:d_limitations}.}
+\textbf{A realistic simulator.} The simulator produced the expected battery behaviour: a voltage sag of 367\,mV per cell at take-off, steps in the right direction at every change of flight phase, and a charge-counting drift with a biased sensor ($-2.3\%$ in 14.2\,min) that matched the theoretical value of about 2.4\%. Its true battery has a second, slow RC pair and parameters offset by 10\%, so the filter was never tested against its own model.
+
+\textbf{An EKF that estimates the SoC and its uncertainty.} A design-stage investigation found that a wrong internal resistance was the main source of SoC error, so the filter learns $R_0$ during flight. On the nominal flight (E1) this filter (stage~B) reached an SoC RMSE of 0.97\%, against 4.36\% for charge counting and 2.51\% for the filter without $R_0$, with the truth inside its $\pm 3\sigma$ band 100\% of the time; its resistance estimate ended at 8.85\,m$\Omega$ against a true 8.8\,m$\Omega$. From a wrong start (E2: true 85\%, assumed 100\%) it was within 2\% after 42\,s (RMSE 1.32\%), while charge counting stayed wrong all flight (RMSE 13.85\%). Adding the sensor bias and the capacity as states (stage~C) could not separate those two within one flight, because only the discharge rate $(I_m - b)/C_n$ is observable, but it got that rate right. Over 20 flights per scenario, stage~C was the only filter whose band held the truth 100\% of the time in all of the nominal, wrong-start, biased-sensor and aged-battery scenarios, with mean RMSE between 1.03\% and 1.80\%. Stage~B, the most accurate on a healthy battery, overestimated the SoC of an aged battery by 8.34\% on average with only 27\% coverage. Stage~C was therefore chosen to drive the decision: the most accurate filter is not always the safest one to make decisions with.
+
+\textbf{A risk-aware return-to-home rule.} The rule turns back when the probability of landing with the 10\% reserve falls below 95\%, using the filter's SoC uncertainty and a trip cost based on the observable drain rate. In the demonstration mission it turned back half a minute earlier than the estimate-only rule and landed with 17.8\% instead of 11.9\%, while charge counting led the drone to a battery failure 200\,m from home.
+
+\textbf{Evaluation against baselines.} In 500 random missions with random start charge, sensor bias, wind, battery age and battery parameters, the risk-aware rule (D) had no battery failures and broke the reserve in 2.8\% of missions, inside its promise of at most 5\%, leaving 6.1\% of the battery unused on average. The same filter used without its uncertainty (C) also had no failures, but broke the reserve in 38.0\% of missions. Charge counting (B) let the battery die in 30.4\% of missions, and in 58.2\% of those with an aged battery. The voltage threshold (A) died in 9.2\% and broke the reserve in 32.2\%. Over these missions the stage-C filter had an SoC RMSE of 1.31\% against 3.35\% for charge counting, with 100\% band coverage. Across a sweep of thresholds from 80\% to 99.9\%, the share of missions that broke the reserve stayed within the promised $1 - p^{\ast}$ every time, so the probabilities were calibrated and slightly conservative. To match the risk-aware rule's safety, the voltage threshold had to rise to 3.55\,V, where it left 17.9\% of the battery unused and completed about half as many deliveries.
+
+Together, these results show that an EKF is effective for this application when its model includes the dominant error source, that its uncertainty is as valuable as its estimate, and that a decision rule which uses an honest uncertainty can keep an explicit safety promise at a modest cost in range.
+
+\section{Limitations and future work}\label{sec:c_next}
+
+The results come from simulation with a representative OCV curve, no temperature effects and one route, and the method reaches its limit when the true battery differs strongly from the filter's model (Section~\ref{sec:d_limitations}). The most useful next steps are to calibrate the current-sensor bias at rest before take-off and estimate the capacity between flights, which would make both individually observable; to add a second RC pair or adaptive noise to the filter for robustness to model mismatch; to compare the EKF with a UKF and a particle filter; and to validate the estimator on real flight logs such as the CMU delivery-drone and eVTOL datasets.

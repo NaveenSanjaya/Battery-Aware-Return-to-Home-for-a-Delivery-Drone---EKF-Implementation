@@ -50,7 +50,7 @@ The main features of the project are:
   \item a process-noise matrix $Q$ derived from the current-sensor noise, rather than guessed (Section~\ref{sec:m_ekf_q}), and a measurement noise that includes an explicit model-error allowance chosen to keep the uncertainty bands honest;
   \item an honest test set-up: the simulated ``true'' battery has two RC pairs and slightly different parameters, while the filter assumes one RC pair and nominal values (Section~\ref{sec:m_truth_vs_filter});
   \item a probabilistic RTH rule that turns back when the probability of a safe return drops below a threshold, so that the safety margin grows automatically when the filter is unsure (Section~\ref{sec:m_rth});
-  \item a planned safety-versus-range trade-off curve that shows what each extra level of safety costs in unused battery (Section~\ref{sec:m_experiments}).
+  \item a safety-versus-range trade-off curve, from a sweep of the decision threshold, that shows what each extra level of safety costs in unused battery and deliveries (Section~\ref{sec:r_sweep}).
 \end{itemize}
 
 \section{Report outline}\label{sec:intro_outline}

@@ -145,7 +145,7 @@ The gain $K_k$ in \eqref{eq:bg_kf_gain} decides how far the estimate moves towar
   \centering
   \caption{How the Kalman gain reacts to different situations.}
   \label{tab:bg_gain}
-  \begin{tabular}{@{}lll@{}}
+  \begin{tabular}{@{}p{0.46\textwidth}lp{0.34\textwidth}@{}}
     \toprule
     Situation & $K$ & What the filter does \\
     \midrule
@@ -212,7 +212,7 @@ Table~\ref{tab:bg_knobs} repeats the same step with the knobs turned. A noisier 
 
 \begin{table}[htbp]
   \centering
-  \caption{Kalman gain for the same step under three settings (Day 1 script, Part 2).}
+  \caption{Kalman gain for the same step under three settings (learning script, Part 2).}
   \label{tab:bg_knobs}
   \begin{tabular}{@{}lc@{}}
     \toprule
@@ -241,8 +241,7 @@ This is a best case. Apart from the bias, the simulated battery in this exercise
 
 \textbf{Estimation theory.} Simon~\cite{simon2006optimal} covers the Kalman filter, the EKF, the UKF and the particle filter, including their assumptions and failure modes. Welch and Bishop~\cite{welch2006intro} give a short introduction to the Kalman filter and the EKF.
 
-\textbf{Battery estimation for drones.} Several works apply these ideas to unmanned aerial vehicles (UAVs). An EKF has been used for SoC estimation in UAV applications~\cite{hal_uav_ekf}. Prognostic algorithms that predict the remaining flying time of electric unmanned vehicles have been verified~\cite{ijphm_flight_time,nasa_flight_time}; remaining flying time is the quantity an RTH decision ultimately depends on. A study in the Journal of Aviation Technology and Engineering compares the EKF, the UKF and Coulomb counting on delivery and inspection missions~\cite{purdue_jate_comparison}.
-% TODO (student): after reading these papers, add one sentence each on what they found.
+\textbf{Battery estimation for drones.} Several works apply these ideas to unmanned aerial vehicles (UAVs). An EKF has been used for SoC estimation in UAV applications~\cite{hal_uav_ekf}. Prognostic algorithms that predict the remaining flying time of electric unmanned vehicles have been verified~\cite{ijphm_flight_time}; remaining flying time is the quantity an RTH decision ultimately depends on. Dibbern et al.~\cite{purdue_jate_comparison} compared an EKF, a UKF and Coulomb counting for a multirotor UAV battery on a delivery mission and a facade-inspection mission. They found the UKF more accurate than the EKF, and found that identifying the battery parameters mattered more for SoC accuracy than the dynamic load.
 
 \textbf{Public data.} Real flight and duty-cycle data are available for future validation: in-flight voltage and current logs from 209 package-delivery flights of a DJI Matrice 100 quadcopter~\cite{cmu_dji_dataset}, an eVTOL battery dataset with take-off, cruise and landing duty cycles~\cite{cmu_evtol_dataset,cmu_evtol_paper}, and LG 18650HG2 cell data intended for testing Kalman-filter SoC algorithms~\cite{mcmaster_lg_hg2}. This project uses simulation only (Section~\ref{sec:m_truth_vs_filter}), so that the true SoC is known and every error can be measured exactly.
 

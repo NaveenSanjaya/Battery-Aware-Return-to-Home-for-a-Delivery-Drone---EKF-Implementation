@@ -38,7 +38,7 @@ The drone flew the \emph{short} mission (three drop-offs, Section~\ref{sec:m_mis
 
 \subsection{OCV curve}
 
-Figure~\ref{fig:r_ocv} shows the OCV curve that the filter believes and the true battery's curve, 5\,mV lower. The two are almost indistinguishable by eye, yet 5\,mV corresponds to about 1\% SoC in the flat middle of the curve, so even this small offset is a real test for the filter. The right-hand axis shows the slope that will become the first entry of $H$ in \eqref{eq:m_H}. It is several times larger near empty than in the middle, so the voltage will correct the SoC much more strongly at low charge.
+Figure~\ref{fig:r_ocv} shows the OCV curve that the filter believes and the true battery's curve, 5\,mV lower. The two are almost indistinguishable by eye, yet 5\,mV corresponds to about 1\% SoC in the flat middle of the curve, so even this small offset is a real test for the filter. The right-hand axis shows the slope that becomes the first entry of $H$ in \eqref{eq:m_H}. It is several times larger near empty than in the middle, so the voltage corrects the SoC much more strongly at low charge.
 
 \begin{figure}[htbp]
   \centering
@@ -72,8 +72,7 @@ Figure~\ref{fig:r_voltage} shows the voltages and the true SoC. The true SoC fal
 
 \textbf{Safety.} The lowest cell voltage, 3.297\,V near the end of the flight, stays about 0.3\,V above the 3.0\,V cut-off, and the drone landed with 18.5\% SoC. The short mission is therefore safe, as intended, and leaves the long mission to test the RTH rule.
 
-The figure also hints at the weakness of policy A (Table~\ref{tab:m_policies}). From around the second drop-off onwards, the loaded voltage is near or below 3.6\,V (the threshold first planned for policy A), while the true SoC is still above one half. A voltage-threshold rule at that level would have turned back with much of the battery unused. This is one reason the final policy A uses 3.5\,V and is swept over a range of thresholds (Section~\ref{sec:m_policies}).
-% TODO (student): confirm the time at which V first stays below 3.6 V for 5 s, and the true SoC at that moment, from results/day2/day2_log.mat.
+The figure also hints at the weakness of policy A (Table~\ref{tab:m_policies}). The measured voltage first stayed below 3.6\,V (the threshold first planned for policy A) for 5 consecutive seconds at 5.4\,min, during the hover at the second drop-off, when the true SoC was still 64.9\%. A voltage-threshold rule at that level would have turned back with most of the battery unused. This is one reason the final policy A uses 3.5\,V and is swept over a range of thresholds (Section~\ref{sec:m_policies}).
 
 \begin{figure}[htbp]
   \centering
@@ -183,11 +182,11 @@ In E2 the true battery started at 85\%, but all three estimators assumed a full 
 
 \subsection{Comparison with the design-stage checks}\label{sec:r_e1e2_python}
 
-The MATLAB results show the same pattern as the design-stage checks in the Python port (Section~\ref{sec:m_ekf_investigation}). For stage~B, the SoC RMSE was 0.97\% in MATLAB against 1.04\% in the port for E1, and 1.32\% against 1.00\% for E2. The two implementations use different random-number generators, so the same seed gives different noise, and single-run numbers differ slightly. The largest difference is for charge counting in E1 (4.36\% in MATLAB against 1.60\% in the port). This is because the MATLAB resting-voltage guess happened to be about 3\% low, and charge counting never corrects a start error. The averages over many missions in the Monte Carlo study (Section~\ref{sec:r_mc}) will remove this single-run luck.
+The MATLAB results show the same pattern as the design-stage checks in the Python port (Section~\ref{sec:m_ekf_investigation}). For stage~B, the SoC RMSE was 0.97\% in MATLAB against 1.04\% in the port for E1, and 1.32\% against 1.00\% for E2. The two implementations use different random-number generators, so the same seed gives different noise, and single-run numbers differ slightly. The largest difference is for charge counting in E1 (4.36\% in MATLAB against 1.60\% in the port). This is because the MATLAB resting-voltage guess happened to be about 3\% low, and charge counting never corrects a start error. The 20-flight averages of E8 (Section~\ref{sec:r_e8}) remove this single-run luck.
 
 \subsection{Common settings for E3 to E8}\label{sec:r_day4_setup}
 
-Experiments E3--E8 were run with \texttt{main\_day4\_experiments.m} (Section~\ref{sec:i_day4}) on the short mission. The starting SoC was read from 10 averaged resting readings, and single runs used seed~2. Because of the averaging, the random numbers differ from the Day~3 runs, so the E1 and E2 scenarios inside E8 do not reproduce Table~\ref{tab:r_e1e2} exactly. Besides the errors, the tables give the mean NEES on the SoC ($e^2/P_{11}$, Section~\ref{sec:m_ekf_consistency}), which should be about 1 for an honest filter; much larger means overconfident.
+Experiments E3--E8 were run with \texttt{main\_day4\_experiments.m} (Section~\ref{sec:i_day4}) on the short mission. The starting SoC was read from 10 averaged resting readings, and single runs used seed~2. Because of the averaging, the random numbers differ from the first E1 and E2 runs, so the E1 and E2 scenarios inside E8 do not reproduce Table~\ref{tab:r_e1e2} exactly. Besides the errors, the tables give the mean NEES on the SoC ($e^2/P_{11}$, Section~\ref{sec:m_ekf_consistency}), which should be about 1 for an honest filter; much larger means overconfident.
 
 \subsection{E3: Bias observability (stage C)}\label{sec:r_e3}
 
@@ -381,46 +380,138 @@ The 20-flight averages confirm the single runs and the design-stage checks of Ta
   \item \textbf{Under strong mismatch (E6) no filter is consistent} (at most 83\% coverage), and the most accurate filter there (stage~B, 2.37\%) does not beat charge counting (1.83\%).
 \end{itemize}
 
-\textbf{Conclusion for the decision filter.} Stage~C is the only filter whose uncertainty stayed honest in all of E1--E4, with an RMSE of 1.0--1.8\%. Stage~B is the most accurate on a healthy battery, but on an aged battery it becomes confidently optimistic, which is the dangerous failure for an RTH decision. The MATLAB results therefore confirm the design choice of Section~\ref{sec:m_ekf_choice}: stage~C will provide the SoC estimate and $\sigma_{\text{SoC}}$ for the RTH rule. The strong-mismatch case E6 remains a stated limitation (Section~\ref{sec:d_limitations}).
+\textbf{Conclusion for the decision filter.} Stage~C is the only filter whose uncertainty stayed honest in all of E1--E4, with an RMSE of 1.0--1.8\%. Stage~B is the most accurate on a healthy battery, but on an aged battery it becomes confidently optimistic, which is the dangerous failure for an RTH decision. The MATLAB results therefore confirm the design choice of Section~\ref{sec:m_ekf_choice}: stage~C provides the SoC estimate and $\sigma_{\text{SoC}}$ for the RTH rule. The strong-mismatch case E6 remains a stated limitation (Section~\ref{sec:d_limitations}).
 
 %--------------------------------------------------------------------------------------------------
 \section{Return-to-home decisions on a single flight}\label{sec:r_single_rth}
 %--------------------------------------------------------------------------------------------------
 
-% Design-stage check (Python), for comparison only: B died after attempting a 2nd delivery; A and C landed at about 10-11% (right on the reserve); D landed at about 17.5%.
-\todo{Day 5 (\texttt{main\_day5\_rth.m}, Part 1). Demonstration mission on the long route: start 95\%, battery at 85\% capacity, sensor bias $-0.5$\,A, headwind $+10\%$, seed 7. Figure \texttt{fig\_demo\_decision.png}: $P_{\text{safe}}$ over time with each policy's turn-back time; stage-C SoC estimate with $\pm 3\sigma$ against the ``needed to get home + reserve'' curve; true SoC under each policy. Figure \texttt{fig\_demo\_map.png}: turn-back points on the map. Table: for each policy, turn-back time, deliveries, true SoC at landing, died or safe. Explain each decision (why B is optimistic with a low-reading sensor and an aged battery; why C lands at the reserve; why D keeps a margin).}
+The demonstration mission (Section~\ref{sec:m_experiments}) was flown on the long route with each of the four policies under the same difficult conditions: start at 95\%, a battery aged to 85\% of its capacity, a current sensor reading 0.5\,A low ($b = -0.5$\,A), a 10\% headwind, and noise seed~7. Table~\ref{tab:r_demo} summarises the outcomes, and Figures~\ref{fig:r_demo_decision} and~\ref{fig:r_demo_map} show how they came about.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Demonstration mission: outcome under each policy.}
+  \label{tab:r_demo}
+  \small
+  \begin{tabular}{@{}lcccc@{}}
+    \toprule
+    Policy & Turn-back & Deliveries & True SoC at landing & Outcome \\
+    \midrule
+    A. Voltage threshold (3.5\,V) & 6.4\,min & 1 & 11.7\% & Safe \\
+    B. Charge counting           & 8.2\,min & 2 & 0.0\%  & Battery died \\
+    C. EKF estimate only         & 6.4\,min & 1 & 11.9\% & Safe \\
+    D. EKF risk-aware (95\%)     & 5.9\,min & 1 & 17.8\% & Safe \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day5_demo_decision.png}
+  \caption{Demonstration mission. Top: $P_{\text{safe}}$ during policy D's flight, with the turn-back time of each policy marked. Middle: true SoC, stage-C estimate with its $\pm 3\sigma$ band, charge counting, and the SoC needed to get home plus the reserve (green). Bottom: true SoC under each policy. Notice that D turns back when the lower edge of the EKF band approaches the green line, that charge counting runs well above the truth, and that only B's battery falls through the reserve to zero.}
+  \label{fig:r_demo_decision}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day5_demo_map.png}
+  \caption{Demonstration mission: flight paths and turn-back points (dots) of the four policies; grey squares are drop-offs and the triangle is home. Notice that A, C and D turn back near drop-off 2, while B carries on towards drop-off 3 and its battery dies just short of home.}
+  \label{fig:r_demo_map}
+\end{figure}
+
+\textbf{The estimators.} In the middle panel of Figure~\ref{fig:r_demo_decision}, the stage-C estimate stays close to the true SoC, inside its band, for the whole flight. Charge counting runs about 7--12\% above the truth, and the gap grows. Both conditions of this mission make it optimistic: the aged battery empties faster than the rated 5\,Ah suggests, and the low-reading sensor hides part of the current drawn. The SoC needed to get home plus the reserve (green) rises as the drone flies away from home and peaks at about 46\% when policy~D turns back.
+
+\textbf{The decisions.}
+\begin{itemize}
+  \item \textbf{D} kept $P_{\text{safe}}$ near 100\% until about 5.8\,min. It then fell to 95\%, and D turned back at 5.9\,min, on the way to drop-off~2, when the estimate minus its uncertainty met the green line. It landed with 17.8\%, that is 7.8 points above the reserve.
+  \item \textbf{C} and \textbf{A} both turned back 0.5\,min later, at 6.4\,min, while hovering at drop-off~2 (Figure~\ref{fig:r_demo_map}). Because a drop counts only once its hover is finished, this drop does not count, and all three safe policies completed one delivery. C, which aims exactly at the reserve, landed at 11.9\%; A landed at 11.7\%. Both kept the reserve, but only just.
+  \item \textbf{B} believed the optimistic charge counter. It completed a second delivery, turned back at 8.2\,min on its way to drop-off~3 (about 3.7\,km east), and its battery died about 200\,m short of home. The reserve that the counter promised did not exist.
+\end{itemize}
+
+At the very end of policy~D's flight, $P_{\text{safe}}$ drops to about 75\% (Figure~\ref{fig:r_demo_decision}, top). This is an artefact: during the final landing the formula \eqref{eq:m_dsoc_home} still charges the full 40\,s landing cost, although part of the landing is already done. Decisions are made only in cruise and hover, so it has no effect.
 
 %--------------------------------------------------------------------------------------------------
 \section{Monte Carlo study}\label{sec:r_mc}
 %--------------------------------------------------------------------------------------------------
 
-% Design-stage check (Python, 200 missions), died / reserve broken / unused / deliveries:
-% B 40% / 92% / - / 1.56;  C 0% / 39.5% / 0.4% / 1.34;  D(0.95) 0% / 4.5% / 5.9% / 1.20.
-\todo{Day 5, Part 2. 500 missions with the conditions of Table~\ref{tab:m_mc_factors}, the same conditions and noise for every policy. Fill Table~\ref{tab:r_mc} from \texttt{monte\_carlo\_summary.csv}, add \texttt{fig\_monte\_carlo.png}, and report the died \% for aged batteries (capacity $< 90\%$). Check the calibration promise of Section~\ref{sec:m_rth_prob}: did policy D break the reserve in at most about 5\% of missions? Compare with the hypothesis in Section~\ref{sec:m_experiments}. When discussing deliveries, note that a drop counts only once its hover is finished, so a turn-back during a hover does not count that drop.}
+The four policies flew the same 500 random missions (Table~\ref{tab:m_mc_factors}), with the same conditions and the same sensor noise; the study took about 95\,s of MATLAB time. Table~\ref{tab:r_mc} and Figure~\ref{fig:r_mc} give the results. Deliveries count a drop only once its hover is finished.
 
 \begin{table}[htbp]
   \centering
-  \caption[Monte Carlo results over 500 missions.]{Monte Carlo results over 500 missions. \textbf{TODO:} fill in from \texttt{monte\_carlo\_summary.csv}.}
+  \caption[Monte Carlo results over 500 missions.]{Monte Carlo results over 500 missions. Reserve broken: died, or landed below the 10\% reserve. Unused battery: mean true SoC at landing minus the reserve, over the missions that landed (negative means below the reserve on average).}
   \label{tab:r_mc}
   \small
-  \begin{tabular}{@{}lcccc@{}}
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{@{}lccccc@{}}
     \toprule
-    Policy & Died & Reserve broken & Unused battery & Deliveries \\
+    Policy & Died & Reserve broken & Unused battery & Deliveries & Died, aged only \\
     \midrule
-    A. Voltage threshold & -- & -- & -- & -- \\
-    B. Charge counting & -- & -- & -- & -- \\
-    C. EKF estimate only & -- & -- & -- & -- \\
-    D. EKF risk-aware & -- & -- & -- & -- \\
+    A. Voltage (3.5\,V)          & 9.2\%  & 32.2\% & 8.0\%    & 0.85 & 10.0\% \\
+    B. Charge counting           & 30.4\% & 90.2\% & $-4.1\%$ & 1.56 & 58.2\% \\
+    C. EKF estimate             & 0.0\%  & 38.0\% & 0.6\%    & 1.32 & 0.0\% \\
+    D. EKF risk-aware (95\%)     & 0.0\%  & 2.8\%  & 6.1\%    & 1.16 & 0.0\% \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\textbf{Estimator accuracy over the Monte Carlo missions.} \todo{From the policy-D flights (array \texttt{acc} in \texttt{main\_day5\_rth.m}): mean SoC RMSE of the stage-C EKF and of charge counting, and the mean share of time the truth was inside the stage-C $\pm 3\sigma$ band, over all 500 missions. Compare with E8 (Table~\ref{tab:r_e8}); these missions are longer and include random battery parameters.}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{day5_monte_carlo.png}
+  \caption{Monte Carlo study, 500 missions. Share of missions in which the battery died (top left) or the reserve was broken (top right), mean unused battery above the reserve (bottom left), and mean deliveries (bottom right), for each policy. Notice that only D combines zero deaths with a low breach rate, and that B's extra deliveries come with a 30\% death rate.}
+  \label{fig:r_mc}
+\end{figure}
+
+The aged-battery column covers the 239 missions in which the true capacity was below 90\% of rated.
+
+\textbf{D, the risk-aware rule, is the only policy that is both safe and calibrated.} It had no deaths and broke the reserve in 2.8\% of missions, inside its promise of at most 5\% (Section~\ref{sec:m_rth_prob}). The breach rate is lower than the promise, so the rule is slightly conservative. This matches the finding of E8 that stage~C's uncertainty is slightly larger than necessary (mean NIS about 0.5, mean NEES below 1, Section~\ref{sec:r_e8}). The price is 6.1\% unused battery and 1.16 deliveries per mission.
+
+\textbf{C uses the same filter but ignores its uncertainty.} It also had no deaths, because the stage-C estimate is accurate, but it broke the reserve in 38\% of missions, and its landings sat on average only 0.6 points above the reserve. C turns back when the estimated margin reaches zero, so it aims exactly at the reserve: whenever the estimate or the trip cost is slightly optimistic, the drone lands slightly below it. With unbiased errors this would happen in about half of the missions. The difference between C and D is therefore not the estimator but what is done with its uncertainty.
+
+\textbf{B, charge counting, is dangerous.} The battery died in 30.4\% of all missions and in 58.2\% of the aged-battery missions, and the reserve was broken in 90.2\%. On average it landed below the reserve ($-4.1\%$). Charge counting with the rated capacity is optimistic for an aged battery and for a sensor that reads low, and nothing in it notices. B also "completed" the most deliveries (1.56), but only because it flew on recklessly.
+
+\textbf{A, the voltage threshold, is neither safe nor efficient at 3.5\,V.} It died in 9.2\% of missions and broke the reserve in 32.2\%, while leaving on average 8.0\% of the battery unused, more than D, and completing only 0.85 deliveries. A voltage threshold ignores how far from home the drone is: the same voltage can be plenty close to home and too little far away. Section~\ref{sec:r_sweep} shows that changing the threshold only trades one problem for the other.
+
+\textbf{Estimator accuracy over the Monte Carlo missions.} Over the 500 policy-D flights, which are longer than the flights of E1--E8 and include random battery parameters, the stage-C EKF had a mean SoC RMSE of 1.31\%, against 3.35\% for charge counting, and the true SoC was inside its $\pm 3\sigma$ band 100\% of the time. This agrees with E8 (Table~\ref{tab:r_e8}) and confirms that the uncertainty passed to the decision rule was honest.
 
 %--------------------------------------------------------------------------------------------------
 \section{Risk-threshold sweep}\label{sec:r_sweep}
 %--------------------------------------------------------------------------------------------------
 
-% Design-stage check (Python, 200 missions), D reserve broken / unused: 0.80: 12% / 3.3%; 0.90: 6.5% / 4.7%; 0.95: 4.5% / 5.9%; 0.99: 1.5% / 8.0%.
-% Policy A (60 missions): 3.4 / 3.5 / 3.6 V -> died 92% / 10% / 0%, with 27% unused at 3.6 V.
-\todo{Day 5, Part 3. First 200 missions. Policy D with $p^{\ast} =$ 80\%, 90\%, 95\%, 99\%, 99.9\%; policy A with $V_{\text{thr}} =$ 3.40--3.60\,V. Figure \texttt{fig\_tradeoff.png}: reserve broken against unused battery, with B and C as single points. Table from \texttt{threshold\_sweep.csv}. For D, compare each breach rate with its promise $1 - p^{\ast}$; state what each extra ``nine'' costs in unused battery and deliveries; show whether any voltage threshold reaches D's curve.}
+Policies D and A were rerun on the first 200 Monte Carlo missions with a range of thresholds (Table~\ref{tab:r_sweep}, Figure~\ref{fig:r_tradeoff}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Threshold sweep over the first 200 missions. For policy D the promised maximum breach rate, $1 - p^{\ast}$, is given in brackets.}
+  \label{tab:r_sweep}
+  \small
+  \begin{tabular}{@{}llcccc@{}}
+    \toprule
+    Policy & Threshold & Died & Reserve broken & Unused battery & Deliveries \\
+    \midrule
+    D & $p^{\ast} = 80\%$   & 0\% & 9.5\% ($\leq 20\%$)  & 3.6\%  & 1.27 \\
+      & $p^{\ast} = 90\%$   & 0\% & 4.0\% ($\leq 10\%$)  & 5.0\%  & 1.22 \\
+      & $p^{\ast} = 95\%$   & 0\% & 2.0\% ($\leq 5\%$)   & 6.1\%  & 1.18 \\
+      & $p^{\ast} = 99\%$   & 0\% & 0.0\% ($\leq 1\%$)   & 8.2\%  & 1.15 \\
+      & $p^{\ast} = 99.9\%$ & 0\% & 0.0\% ($\leq 0.1\%$) & 10.4\% & 1.11 \\
+    \midrule
+    A & $V_{\text{thr}} = 3.40$\,V & 96.0\% & 100.0\% & $-7.9\%$ & 1.88 \\
+      & $V_{\text{thr}} = 3.45$\,V & 56.5\% & 84.0\%  & $-1.0\%$ & 1.41 \\
+      & $V_{\text{thr}} = 3.50$\,V & 11.0\% & 35.0\%  & 7.5\%    & 0.89 \\
+      & $V_{\text{thr}} = 3.55$\,V & 0.5\%  & 3.0\%   & 17.9\%   & 0.56 \\
+      & $V_{\text{thr}} = 3.60$\,V & 0\%    & 0\%     & 28.7\%   & 0.36 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.9\textwidth]{day5_tradeoff.png}
+  \caption{Safety against wasted battery over 200 missions: share of missions that broke the reserve or died, against the mean unused battery, for each threshold of policies A and D, with B and C as single points. Bottom-left is best. Notice that D's curve lies far below A's at every level of unused battery, and that B and C sit far above it.}
+  \label{fig:r_tradeoff}
+\end{figure}
+
+\textbf{D keeps its promise at every threshold.} No mission died at any threshold, and the breach rate was always within the promise $1 - p^{\ast}$: 9.5\% against at most 20\%, 4.0\% against 10\%, 2.0\% against 5\%, and none at 99\% and 99.9\%. At the three lower thresholds the breach rate was about half the promise, which again shows a slightly conservative uncertainty. With 200 missions the smallest non-zero breach rate that can be observed is 0.5\%, so the 99.9\% promise ($\leq 0.1\%$) is not contradicted, but it cannot be confirmed either.
+
+\textbf{No voltage threshold works.} Low thresholds kill the drone (96\% died at 3.40\,V, 56.5\% at 3.45\,V). To reach D's level of safety, A needs 3.55\,V (3.0\% broken), but then it wastes 17.9\% of the battery, about three times D's 6.1\% at 95\%, and completes only 0.56 deliveries, about half of D's 1.18. In Figure~\ref{fig:r_tradeoff}, for every voltage threshold that keeps the breach rate below that of policy C, there is a D threshold that is at least as safe and less wasteful. The only A points with less unused battery than D are those that land below the reserve on average. B and C, which have no threshold to tune, sit far above D's curve.
+
+\textbf{The price of safety.} Moving D from 90\% to 99\% raised the unused battery from 5.0\% to 8.2\% and cut the deliveries from 1.22 to 1.15; moving from 99\% to 99.9\% cost a further 2.2 points of battery and 0.04 deliveries. Each extra ``nine'' therefore costs a few percent of the battery and a few hundredths of a delivery per mission. The curve lets an operator choose the point that suits the risk they can accept; 95\% is a reasonable default, with a breach rate of about 2--3\% and about 6\% unused battery.

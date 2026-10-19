@@ -1,225 +1,120 @@
 # Battery-Aware Return-to-Home for a Delivery Drone - EKF Implementation
 
-## Project Overview
-This project develops a battery-aware return-to-home (RTH) algorithm for a delivery drone using an Extended Kalman Filter (EKF) to estimate battery state of charge (SoC) and state of health (SoH). The system predicts remaining flight time and triggers RTH proactively to prevent unexpected landings.
+A delivery drone must decide when to stop delivering and fly home, but nobody can measure how much charge is left. This project uses an **Extended Kalman Filter (EKF)** to estimate the battery's state of charge (SoC) **and how uncertain that estimate is**. A **risk-aware rule** then uses both to turn back when the drone is no longer 95% sure of landing with a 10% reserve.
 
-## System Architecture
-The system consists of three main components:
-1.  **Battery Modeling**: Uses Thevenin equivalent circuit model with temperature compensation
-2.  **Online Parameter Estimation**: EKF-based estimation of battery parameters (R₀, R₁, C₁, I₀, K)
-3.  **Energy Management**: Proactive RTH triggering based on predicted range
+Everything runs in simulation (MATLAB), so the true SoC is always known and every estimate and decision can be scored.
 
-## Installation
+![System overview](docs/figures/fig1_system_overview.png)
 
-### Prerequisites
--   MATLAB R2020b or later
--   Control System Toolbox
--   Optimization Toolbox
--   Instrument Control Toolbox
+## Key results
 
-### Installation Steps
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/yourusername/Battery-Aware-RTH-EKF.git
-    cd Battery-Aware-RTH-EKF
-    ```
-2.  Open MATLAB and navigate to the project folder
-3.  Add the project folders to MATLAB path:
-    ```matlab
-    addpath(genpath('battery_model'));
-    addpath(genpath('ekf'));
-    addpath(genpath('simulations'));
-    ```
+**500 random missions** with random start charge, current-sensor bias, wind, battery age (80–100% capacity) and battery parameters. The long route is too far for one battery, so the drone must decide when to turn back.
 
-## Usage
+| Return-to-home policy | Battery died | Reserve broken* | Unused battery | Deliveries |
+|---|---|---|---|---|
+| A: voltage threshold (3.5 V) | 9.2% | 32.2% | 8.0% | 0.85 |
+| B: charge counting + margin | 30.4% | 90.2% | −4.1% | 1.56 |
+| C: EKF estimate + margin | 0.0% | 38.0% | 0.6% | 1.32 |
+| **D: EKF risk-aware, P(safe) < 95%** | **0.0%** | **2.8%** | 6.1% | 1.16 |
 
-### Running Simulations
+\* landed below the 10% reserve, or died.
 
-#### 1. Static Test (Constant Current Load)
-Run the static simulation to test the EKF performance under constant current conditions:
-```matlab
-run('simulations/static_test/run_static_test.m');
-```
+- **D never ran out of battery and broke the reserve in only 2.8% of missions**, within its 5% promise. It stays within its promise at every threshold tested (80% to 99.9%), so the filter's uncertainty is calibrated.
+- C uses the **same filter** as D but ignores its uncertainty. It aims exactly at the reserve and breaks it in 38% of missions.
+- Charge counting (B) is optimistic with aged batteries: it died in 58% of missions whose battery had less than 90% capacity.
+- No fixed voltage threshold (A) is both safe and efficient. Matching D's safety needs 3.55 V, which wastes about 3× more battery and completes about half the deliveries.
+- Estimator accuracy over the 500 missions: **EKF RMSE 1.31%**, against 3.35% for charge counting. The truth was inside the EKF's ±3σ band 100% of the time.
 
-**Expected Output**: Plots comparing estimated SoC vs. true SoC, and parameter convergence.
+## How the filter works
 
-#### 2. Dynamic Test (Variable Current Load)
-Run the dynamic simulation to test the EKF under variable current conditions:
-```matlab
-run('simulations/dynamic_test/run_dynamic_test.m');
-```
-
-**Expected Output**: 
--   Time-domain plots of estimated vs. true parameters
--   SoC estimation accuracy
--   Remaining flight time prediction
--   RTH decision triggers
-
-#### 3. Real-World Test (Simulated Flight)
-Run the simulated flight test to evaluate RTH performance:
-```matlab
-run('simulations/flight_test/run_flight_test.m');
-```
-
-**Expected Output**:
--   Geographical path visualization
--   RTH trigger events
--   Energy consumption analysis
--   Mission success/failure report
-
-### Parameter Estimation
-
-The EKF estimates the following battery parameters:
--   R₀: Zero-order resistance
--   R₁: First-order resistance
--   C₁: First-order capacitance
--   I₀: Exchange current
--   K: Diffusion coefficient
-
-## Code Structure
+The battery is modelled as a 1-RC equivalent circuit. The EKF state is
 
 ```
-Battery-Aware-RTH-EKF/
-├── battery_model/          # Battery modeling and simulation
-│   ├── BatteryModel.m      # Battery class
-│   ├── generate_data.m     # Data generation
-│   ├── simulate_flight.m   # Flight simulation
-│   └── temperature_model.m # Temperature compensation
-├── ekf/                    # EKF implementation
-│   ├── initialize_ekf.m    # EKF initialization
-│   ├── predict.m           # Prediction step
-│   ├── update.m            # Update step
-│   └── run_ekf.m           # EKF execution loop
-├── simulations/            # Simulation scripts
-│   ├── static_test/        # Constant current test
-│   ├── dynamic_test/       # Variable current test
-│   └── flight_test/        # Simulated flight test
-├── docs/                   # Documentation
-│   ├── project_guide.md    # User guide
-│   └── figures/            # System diagrams
-└── README.md               # Project documentation
+x = [SoC, V1, b, Cn, R0]
+     SoC: state of charge        V1: polarisation voltage
+     b:   current-sensor bias    Cn: capacity    R0: ohmic resistance
 ```
 
-## Methodology
+The measured current drives the prediction. The measured terminal voltage, `V = OCV(SoC) − V1 − R0·(Im − b)`, drives the correction. Three filter stages were compared:
 
-### Battery Model
-We use Thevenin equivalent circuit model with temperature compensation:
-\[
-V_{oc} = f(SoC, T)\]
-\[
-i(t) = \frac{V_{oc} - V_{terminal}(t)}{R_0 + \frac{R_1 C_1}{1 + R_1 C_1 s}}\]
+| Stage | Learns | Finding |
+|---|---|---|
+| A | SoC, V1 | Biased and overconfident when the real battery's resistance differs from the model |
+| B | + R0 | Most accurate on a healthy battery, but confidently optimistic on an aged one |
+| C | + b, Cn | Consistent (honest ±3σ) in every normal scenario, so **stage C drives the decision** |
 
-### EKF Implementation
-```matlab
-% Prediction step
-x_minus = f(x, u);
-P_minus = F * P * F' + Q;
+Bias and capacity cannot be separated within one flight. Their combination, the drain rate `(Im − b)/Cn`, is observable, so the trip-home cost uses that rate.
 
-% Update step
-y_res = z - h(x);
-S = H * P_minus * H' + R;
-K = P_minus * H' * inv(S);
-x = x + K * y_res;
-P = (eye(size(P)) - K * H) * P_minus;
-```
+The simulator's "real" battery is deliberately different from the filter's model: a 2-RC circuit, different parameters and a shifted OCV curve. This makes the results honest.
 
-### RTH Algorithm
-```matlab
-predicted_range = calculate_range(current_soc, current_power, efficiency);
-
-if predicted_range < distance_to_home * safety_margin
-    trigger_rth();
-end
-```
-
-## Results
-
-### EKF Accuracy
-The EKF achieves high accuracy in parameter estimation:
--   SoC estimation error: < 2%
--   Parameter convergence: Within 50 iterations
--   Robust to measurement noise: Up to 5% noise tolerance
-
-### RTH Performance
--   Proactive RTH triggering: 1-3 minutes before depletion
--   Successful missions: 95% of cases
--   Unexpected landings: Reduced by 80%
--   Safety margin: Configurable (default: 1.3)
-
-### Temperature Compensation
-The temperature model improves accuracy by 15% in cold conditions.
-
-## Customization
-
-### Tuning EKF Parameters
-Edit `initialize_ekf.m` to adjust:
--   Process noise covariance `Q`
--   Measurement noise covariance `R`
--   Initial estimates `x_init`
-
-### Adjusting RTH Parameters
-Edit `run_flight_test.m` to modify:
--   `distance_to_home`: Distance to RTH location
--   `safety_margin`: Safety factor (default: 1.3)
--   `weather_impact`: Wind/weather factors
-
-### Adding Real Hardware Integration
-1.  Replace `generate_data.m` with actual sensor data acquisition
-2.  Integrate with drone flight controller (e.g., ArduPilot, PX4)
-3.  Implement wireless communication for parameter updates
-
-## Troubleshooting
-
-### EKF Not Converging
--   Check initial parameter estimates in `initialize_ekf.m`
--   Verify sensor data quality and calibration
--   Increase sampling rate if needed
-
-### RTH Not Triggering
--   Ensure `distance_to_home` is realistic
--   Check battery capacity and efficiency parameters
--   Increase `safety_margin`
-
-### Simulation Errors
--   Verify all toolboxes are installed
--   Check MATLAB path settings
--   Ensure all scripts are in their correct directories
-
-## License
-This project is for educational and research purposes. Commercial use requires explicit permission.
-
-## Contributing
-Contributions are welcome! Please follow these steps:
-1.  Fork the repository
-2.  Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the branch (`git push origin feature/AmazingFeature`)
-5.  Open a Pull Request
-
-## Citation
-If you use this work in your research, please cite:
+## Repository structure
 
 ```
-Naveen Sanjaya, "Battery-Aware Return-to-Home for a Delivery Drone Using EKF," 2024.
+drone_battery_ekf/
+├── main_day2_simulator.m      Simulator check: one delivery flight, no filter
+├── main_day3_ekf.m            E1 normal flight, E2 wrong start (stages A and B)
+├── main_day4_experiments.m    E3 bias, E4 aged battery, E5 tuning, E6 stress test,
+│                              E7 flat OCV region, E8 20-flight comparison
+├── main_day5_rth.m            Return-to-home: demo, 500-mission Monte Carlo, threshold sweep
+├── learning/
+│   └── day1_ekf_by_hand.m     One EKF step worked by hand (learning exercise)
+├── config/
+│   ├── battery_params.m       Truth, filter and sensor parameters
+│   ├── ocv_lookup.m           OCV curve and its slope
+│   └── soc_from_ocv.m         Resting voltage -> starting SoC
+├── sim/
+│   ├── make_mission.m         'short' and 'long' delivery routes
+│   ├── drone_init.m, drone_step.m           Drone flight phases
+│   ├── battery_true_init.m, battery_true_step.m   The "real" 2-RC battery
+│   ├── read_sensors.m         Biased, noisy current and voltage sensors
+│   ├── run_flight.m           One flight with EKF + charge counting (experiments)
+│   ├── run_mission_rth.m      One long mission where a policy decides when to return
+│   ├── draw_conditions.m      Random conditions for the Monte Carlo study
+│   └── flight_metrics.m       RMSE, ±3σ coverage, NIS, NEES
+├── estimators/
+│   ├── ekf_init.m             Starting guess, uncertainty, tuning, stage A/B/C
+│   ├── ekf_step.m             One predict + update
+│   └── coulomb_count.m        Charge-counting baseline
+├── decision/
+│   ├── trip_soc.m             Charge needed to fly home and land
+│   ├── p_safe_return.m        P(home with reserve) = Phi(margin / sigma)
+│   └── rth_policy.m           Policies A-D
+└── results/                   Figures, .mat and .csv files written by the scripts
+Report/                        LaTeX report (main.tex, chapters/, figures/)
+Report/notes/plain_summary.md  Plain-language summary of every chapter, with likely examiner questions
+docs/project_guide.md          The original project plan and theory primer
 ```
 
-## Contact
-For questions or support, please open an issue or contact [EMAIL_ADDRESS]
+`docs/project_guide.md` describes the plan as it stood at the start. The final design differs in two places: R0 was added as a state, and stage C drives the decision. The report describes the final design.
 
----
+## Requirements
 
-**System Architecture**
+- MATLAB R2019b or later. Only base MATLAB is used; no toolboxes are required.
+- R2020a or later is recommended, so figures are saved with `exportgraphics` (older versions fall back to `saveas`).
 
-![System Overview](docs/figures/fig1_system_overview.png)
+## How to run
 
-**OCV Curve**
+Open MATLAB in the `drone_battery_ekf` folder and run the scripts in order. Each one adds the folders it needs to the path and writes its outputs to `results/<day>/`.
 
-![OCV Curve](docs/figures/fig2_ocv_curve.png)
+| Script | What it produces | Run time |
+|---|---|---|
+| `learning/day1_ekf_by_hand.m` | One EKF step printed number by number, and a 10-minute discharge plot | seconds |
+| `main_day2_simulator.m` | Simulator check: mission map, current, voltage sag, true SoC | seconds |
+| `main_day3_ekf.m` | E1/E2 tables and figures (stage A vs B vs charge counting) | seconds |
+| `main_day4_experiments.m` | E3–E8 tables, 6 figures, `e8_summary.csv` | about 30 s |
+| `main_day5_rth.m` | Demo, Monte Carlo and threshold sweep: 4 figures, 2 CSV files | about 4–5 min |
 
-**Equivalent Circuit**
+For a quick check of `main_day5_rth.m`, set `N_MC = 50` and `N_SWEEP = 30` at the top of the script.
 
-![Equivalent Circuit](docs/figures/fig3_equivalent_circuit.png)
+All random numbers are seeded, so every run reproduces the same results.
 
-**EKF Loop**
+## Limitations
 
-![EKF Loop](docs/figures/fig4_ekf_loop.png)
+- Simulation only. The OCV curve is a representative Li-ion curve rather than measured data, and temperature and hysteresis are not modelled.
+- Under a strong model mismatch (experiment E6) no filter stays consistent. The EKF is only as good as its model.
+- Bias and capacity are only weakly observable within one flight. Estimating capacity between flights, and calibrating the bias at rest, would improve this.
+- The return-to-home rule assumes Gaussian errors, a straight flight home and a constant cruise current.
+
+## Author
+
+B.M.N.S. Basnayake (220072R), Department of Electronic and Telecommunication Engineering, University of Moratuwa. Mini-project: *Implementing State Estimation Filters*, 2026.

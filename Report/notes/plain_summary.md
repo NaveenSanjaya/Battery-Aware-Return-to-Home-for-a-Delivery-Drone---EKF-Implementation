@@ -1,8 +1,26 @@
 # Plain-language summary of the report
 
-This is a study aid, not part of the report. For each chapter written so far, it says in simple words what the chapter says and why it matters. It then gives a few questions an examiner might ask, with short answers.
+This is a study aid, not part of the report. It starts with a one-page summary of the whole project. Then, for each chapter, it says in simple words what the chapter says and why it matters, followed by questions an examiner might ask, with short answers.
 
-The return-home results in Chapter 5 (waiting for the Day 5 MATLAB run), and Chapters 6 and 7, are still skeletons. They will be added here when they are written.
+## One-page summary: the project in 10 bullets
+
+1. **Problem.** A delivery drone must decide when to fly home, but it cannot measure its remaining charge (SoC). It only has a noisy, biased current sensor and a voltage that dips under load.
+2. **Tool.** An Extended Kalman Filter (EKF) combines the two: current drives the prediction, voltage corrects it. It gives an SoC estimate *and* how sure it is (σ).
+3. **Honest test.** The simulated "true" battery is deliberately different from the filter's model: two RC pairs instead of one, resistances off by 10%, and the OCV curve 5 mV lower.
+4. **Key design finding.** The biggest error came from a wrong internal resistance R0, not from sensor bias. So the filter learns R0 during flight (stage B). On a normal flight this gave **0.97% SoC error vs 4.36% for charge counting**, and from a wrong start, 1.32% vs 13.85%.
+5. **Why it works.** The current steps (take-off → cruise) let the filter tell "less charge" apart from "more resistance". At that moment its error band shrinks from ±8.5% to ±2.5%.
+6. **Most accurate ≠ safest.** Stage B is the most accurate on a healthy battery, but on an old battery it is confidently wrong (+8.3% too optimistic). Stage C (which also learns bias and capacity) stayed honest in every test: the truth was inside its band 100% of the time, with 1.0–1.8% error. **Stage C makes the decision.**
+7. **Go-home rule.** Turn back when P(land with the 10% reserve) < 95%. The trip cost uses the filter's own drain rate (current − bias)/capacity, plus a 10% trip allowance.
+8. **Headline result (500 random missions).** D (risk-aware): **0% died, reserve broken 2.8%**. C (same filter, ignores σ): 38% broken. B (charge counting): **30.4% died** (58% with old batteries). A (voltage 3.5 V): 9.2% died.
+9. **Calibrated.** At every threshold (80–99.9%), D broke its reserve no more often than it promised (e.g. 2.0% vs ≤5%). To be as safe, a voltage rule needs 3.55 V and wastes 3× more battery (17.9% vs 6.1%).
+10. **Limits and next steps.** Simulation only, a representative OCV curve, no temperature, one route. If the model is very wrong (E6), no filter stays honest. Next: calibrate the bias at rest, estimate capacity between flights, try a 2-RC model, a UKF, and real flight logs.
+
+---
+
+## Abstract
+
+- One paragraph (~200 words) at the start of the report with the problem, the method and the headline numbers: 0.97% vs 4.36% error, and 0% died / 2.8% reserve broken for D vs 38.0% for C and 30.4% died for B.
+- It must agree with the Introduction's contributions and the Conclusion; all three use the same numbers.
 
 ---
 
@@ -143,7 +161,7 @@ The return-home results in Chapter 5 (waiting for the Day 5 MATLAB run), and Cha
 
 ---
 
-## Chapter 5 (part written): Simulator verification
+## Chapter 5: Results — simulator verification
 
 **What it says**
 
@@ -169,7 +187,7 @@ The return-home results in Chapter 5 (waiting for the Day 5 MATLAB run), and Cha
 
 ---
 
-## Chapter 5 (part written): E1 and E2, the first EKF results
+## Chapter 5: Results — E1 and E2, the first EKF results
 
 **What it says**
 
@@ -197,7 +215,7 @@ The return-home results in Chapter 5 (waiting for the Day 5 MATLAB run), and Cha
 
 ---
 
-## Chapter 5 (part written): E3 to E8, stress tests (Day 4)
+## Chapter 5: Results — E3 to E8, stress tests
 
 **What it says**
 
@@ -223,9 +241,88 @@ The return-home results in Chapter 5 (waiting for the Day 5 MATLAB run), and Cha
 
 ---
 
+## Chapter 5: Results — the go-home decision
+
+**What it says**
+
+- **Demo mission** (hard conditions: old battery, sensor reading 0.5 A low, headwind):
+  - D turned back first (5.9 min) and landed with 17.8%.
+  - A and C turned back at 6.4 min, while hovering at drop-off 2, and landed just above the 10% reserve (11.7% and 11.9%).
+  - B trusted charge counting, which was 7–12% too optimistic. It tried a second delivery, turned back too late and **died 200 m from home**.
+- **Monte Carlo, 500 random missions, all four policies on exactly the same missions:**
+  - **D (risk-aware):** 0% died, reserve broken in only **2.8%** (it promised at most 5%), 6.1% battery left over, 1.16 deliveries.
+  - **C (EKF, ignores σ):** 0% died, but reserve broken in **38%**. Same filter as D!
+  - **B (charge counting):** **30% died** (58% with old batteries), reserve broken in 90%. Most deliveries (1.56), but only because it was reckless.
+  - **A (voltage 3.5 V):** 9% died, reserve broken in 32%, *and* it wasted 8% of the battery.
+- The EKF itself (stage C) had 1.3% error over these 500 missions, against 3.4% for charge counting, and the truth was inside its band 100% of the time.
+- **Threshold sweep:** D kept its promise at every setting (80% → 9.5% broken, promise ≤20%; 95% → 2.0%, promise ≤5%; 99% → 0%). For A to be as safe as D, it needs 3.55 V, which wastes 17.9% of the battery (3× D) and does about half the deliveries. No voltage setting beats D.
+- **Price of safety:** going from 90% to 99% costs about 3 points of battery and 0.07 deliveries per mission. The operator can pick; 95% is a good default.
+
+**Why it matters:** this is the headline result. Same filter, but using its uncertainty (D) instead of ignoring it (C) cuts reserve breaches from 38% to 2.8%. That is the creative part of the project.
+
+**Examiner questions**
+
+1. *Why does C break the reserve ~40% of the time if its estimate is accurate?*
+   Because it aims exactly at the reserve. Even a good estimate is sometimes a little high, and then the drone lands a little below 10%. If errors go up and down equally, that happens about half the time. D aims above the reserve by 1.645 σ, so it rarely falls below.
+2. *What does "calibrated" mean?*
+   That the probability means what it says. D promised "at most 5% of missions break the reserve" at 95%, and it was 2.8% (and within the promise at every threshold). So you can trust its numbers. It is slightly on the safe side, like the Day 4 NIS ≈ 0.5.
+3. *Why not just pick a higher voltage threshold for A?*
+   A higher voltage is safer but wastes battery, because voltage doesn't know how far home is. At 3.55 V, A is about as safe as D but wastes 3× more battery and does half the deliveries.
+
+---
+
+## Chapter 6: Discussion
+
+**What it says (all sections)**
+
+- **Why the EKF works:** the voltage gives an independent check every second, and the gain decides how much to trust it. With a perfect model the error was only 0.12%, so the tangent-line approximation is fine. The remaining errors come from model mismatch.
+- **OCV slope and uncertainty:** where the curve is flat, the voltage says less, so stage C's σ grows (1.5% → 2.2%). That is where turn-back decisions happen, so the go-home buffer grows there too.
+- **Observability:** R0 needs current *changes* to be learned (the take-off step). Bias and capacity can't be separated within one flight; only the drain rate (current − bias)/capacity can be learned. An unlearned bias does little harm because the voltage keeps correcting it.
+- **Model mismatch:** a systematic error is not random noise, so making R bigger doesn't fix it; learning the cause (R0) does. Stage A had a normal-looking NIS (≈0.5) but NEES 83–404: you can't see this failure from the innovations alone. With a very wrong model (E6), no filter stays honest.
+- **Tuning (E5):** NIS catches a wrongly set R (NIS = 32), but not a biased model. A slightly more accurate tuning (Q×0.01) was less honest, so the safer one was kept.
+- **Choosing the filter** and **value of uncertainty:** see the bullets below.
+- **Limitations:** simulation only, representative OCV curve, no temperature or hysteresis, Gaussian assumption, straight path and constant cruise current home, the landing-phase P(safe) artefact, one route.
+- **Future work:** bias calibration at rest, capacity between flights, 2-RC filter, adaptive noise, UKF/PF comparison, real CMU flight logs.
+
+**Choosing the filter and the value of uncertainty (details)**
+
+- **Most accurate ≠ safest.** Stage B is the most accurate on a good battery, but on an old battery it is confidently wrong and too optimistic. Stage C is a bit less accurate but always honest, so it drives the decision.
+- Stage C gets the SoC right even when its bias and capacity guesses are wrong, because the voltage only checks the drain rate (current − bias)/capacity, and it gets that rate right.
+- **C vs D is the cleanest test:** same filter, same everything, only D uses σ. Breaches: 38% vs 2.8%. Using the uncertainty is what makes the decision safe.
+- **Calibration** tests the whole chain (filter σ, trip cost, trip allowance, bell-curve assumption). D kept every promise, with room to spare.
+- B fails because nothing in charge counting notices it is wrong. A fails because the right voltage depends on the distance home.
+- The threshold sweep gives the operator a clear price list for safety.
+
+**Examiner questions**
+
+1. *Why is a slightly conservative filter acceptable?*
+   For a safety decision, a promise kept with room to spare is better than one that is broken. The cost here is a few percent of battery.
+2. *Could you make stage C more accurate?*
+   Yes: measure the sensor bias at rest before take-off (the current is known to be zero), and estimate capacity between flights. Then bias and capacity could be learned separately.
+3. *Why didn't a UKF get used, if Dibbern et al. found it more accurate?*
+   Because here the errors came from model mismatch, not from linearisation (the perfect-model test gave 0.12% error). A UKF uses the same model, so it would not fix those errors. Comparing them is listed as future work.
+
+---
+
+## Chapter 7: Conclusion
+
+**What it says**
+
+- Simulator: realistic (367 mV take-off sag; charge-counting drift matched theory).
+- EKF: learning R0 cut the error to 0.97% (vs 4.36% charge counting); from a wrong start 1.32% (vs 13.85%). Stage C was the only filter honest in all of E1–E4 (1.03–1.80% error).
+- Go-home rule: in the demo it landed with 17.8% while charge counting led to a crash 200 m from home.
+- Monte Carlo: D 0% died, 2.8% reserve broken; C 38%; B 30.4% died; A 9.2% died. Estimator 1.31% vs 3.35% error. D's promise held at every threshold.
+- Main message: the uncertainty is as valuable as the estimate, if it is honest.
+
+**Examiner question**
+
+1. *What is the single most important result?*
+   With the same filter, using its uncertainty (policy D) instead of ignoring it (policy C) cut reserve breaches from 38% to 2.8%, with no crashes, and the 95% promise was kept.
+
+---
+
 ## Things to check before submitting (from the writer)
 
-- Module name and code on the title page (it says EN3330 Introduction to Engineering Optimization, which may be from another template).
-- The source of the OCV table: cite it, or say clearly it is a representative curve.
-- Every `TODO` note in the bibliography (authors, years, titles). They print on purpose so you cannot miss them.
-- The policy-A remark in Section 5.1 (the voltage dropping below 3.6 V while SoC is still above half). Confirm it from `day2_log.mat`.
+- Module name and code on the title page (it says EN3330 Introduction to Engineering Optimization, which may be from another template). This is the only TODO left in the LaTeX.
+- Compile with pdfLaTeX + BibTeX (pdflatex, bibtex, pdflatex, pdflatex) and look through the PDF once: tables near the page width, figure placement, and that the appendix shows the code (it reads the files from `../drone_battery_ekf`).
+- Read the report once yourself, especially the Discussion and Conclusion, so you can explain every claim in your own words.
