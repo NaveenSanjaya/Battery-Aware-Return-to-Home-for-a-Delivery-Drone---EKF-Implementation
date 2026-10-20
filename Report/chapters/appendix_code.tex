@@ -7,42 +7,18 @@
 % visible TODO instead of stopping the compile.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-This appendix lists the MATLAB code. The folder structure is described in Section~\ref{sec:i_structure}.
+This appendix lists the core files of the method: the true battery and sensors, the EKF, and the return-to-home decision. The remaining files (parameters, OCV lookup, drone motion, performance measures, experiment and plotting scripts) are in the project's code folder \texttt{drone\_battery\_ekf/}, organised as in Table~\ref{tab:i_files}.
 
-\section{Configuration}
-\codefile{config/battery_params.m}{\texttt{config/battery\_params.m}}
-\codefile{config/ocv_lookup.m}{\texttt{config/ocv\_lookup.m}}
-\codefile{config/soc_from_ocv.m}{\texttt{config/soc\_from\_ocv.m}}
-
-\section{Simulator}
-\codefile{sim/battery_true_init.m}{\texttt{sim/battery\_true\_init.m}}
+\section{Simulated battery and sensors}
 \codefile{sim/battery_true_step.m}{\texttt{sim/battery\_true\_step.m}}
 \codefile{sim/read_sensors.m}{\texttt{sim/read\_sensors.m}}
-\codefile{sim/make_mission.m}{\texttt{sim/make\_mission.m}}
-\codefile{sim/drone_init.m}{\texttt{sim/drone\_init.m}}
-\codefile{sim/drone_step.m}{\texttt{sim/drone\_step.m}}
-\codefile{sim/run_flight.m}{\texttt{sim/run\_flight.m}}
-\codefile{sim/flight_metrics.m}{\texttt{sim/flight\_metrics.m}}
 
-\section{Estimators}
+\section{Extended Kalman Filter}
 \codefile{estimators/ekf_init.m}{\texttt{estimators/ekf\_init.m}}
 \codefile{estimators/ekf_step.m}{\texttt{estimators/ekf\_step.m}}
-\codefile{estimators/coulomb_count.m}{\texttt{estimators/coulomb\_count.m}}
 
-\section{Decision rule}
+\section{Return-to-home decision}
 \codefile{decision/trip_soc.m}{\texttt{decision/trip\_soc.m}}
 \codefile{decision/p_safe_return.m}{\texttt{decision/p\_safe\_return.m}}
 \codefile{decision/rth_policy.m}{\texttt{decision/rth\_policy.m}}
-
-\section{Return-to-home missions}
-\codefile{sim/draw_conditions.m}{\texttt{sim/draw\_conditions.m}}
 \codefile{sim/run_mission_rth.m}{\texttt{sim/run\_mission\_rth.m}}
-
-\section{Main scripts}
-\codefile{main_day2_simulator.m}{\texttt{main\_day2\_simulator.m}}
-\codefile{main_day3_ekf.m}{\texttt{main\_day3\_ekf.m}}
-\codefile{main_day4_experiments.m}{\texttt{main\_day4\_experiments.m}}
-\codefile{main_day5_rth.m}{\texttt{main\_day5\_rth.m}}
-
-\section{Learning exercise}
-\codefile{learning/day1_ekf_by_hand.m}{\texttt{learning/day1\_ekf\_by\_hand.m}}
