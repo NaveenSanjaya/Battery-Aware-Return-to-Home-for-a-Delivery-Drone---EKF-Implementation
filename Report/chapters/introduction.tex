@@ -2,57 +2,30 @@
 % Chapter 1: Introduction   (the \chapter command is in main.tex)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\section{Problem}\label{sec:intro_problem}
+\section{Problem and motivation}\label{sec:intro_problem}
 
-A delivery drone flies a multi-drop route on a single battery. At some point it must stop delivering and fly home. The drone has to make that decision itself, every second of the flight, and it cannot measure the remaining charge directly. The remaining charge is expressed as the battery's \emph{state of charge} (SoC), which runs from 100\% (full) to 0\% (empty). SoC is a hidden quantity: no sensor reads it.
+A delivery drone must decide, during flight, when to stop delivering and return home. It cannot measure its remaining charge, the \emph{state of charge} (SoC), directly. It only has a noisy, slightly biased current sensor and a voltage sensor whose reading dips under heavy load, so a low voltage does not always mean an empty battery.
 
-The drone has only two imperfect clues about the SoC:
-\begin{itemize}
-  \item a \textbf{current sensor}, which is noisy and has a small constant error (a \emph{bias});
-  \item a \textbf{voltage sensor}, which is accurate, but the battery voltage it reads dips whenever the motors work hard, so a low reading does not always mean an empty battery.
-\end{itemize}
-
-This project builds an estimator that combines both clues into one best estimate of the SoC, together with a measure of how uncertain that estimate is. A return-to-home (RTH) rule then uses both numbers to decide when the drone must turn back.
-
-\section{Motivation: safety versus wasted range}\label{sec:intro_motivation}
-
-The RTH decision can fail in two opposite ways.
-\begin{itemize}
-  \item \textbf{Turning back too late.} The battery empties, or its voltage falls below the safe limit, before the drone lands. The drone and its payload are lost, and a falling drone is a hazard to people below.
-  \item \textbf{Turning back too early.} The drone lands with charge it could have used. Fewer parcels are delivered per charge, and the operator needs more flights and more drones for the same work.
-\end{itemize}
-
-A simple way to avoid the first failure is a large fixed safety margin, but that makes the second failure worse. The better answer is a margin that changes with how much the drone actually knows. When the SoC estimate is precise, a small margin is enough. When it is uncertain, the margin should grow. This needs an estimator that reports its own uncertainty, which is exactly what a Kalman filter does.
+The decision can fail in two ways. Turning back too late risks losing the drone and its payload. Turning back too early wastes battery and deliveries. A fixed safety margin trades one failure for the other. A better decision needs both an SoC estimate and a measure of how uncertain it is, so that the margin can shrink when the estimate is precise and grow when it is not.
 
 \section{Why an Extended Kalman Filter}\label{sec:intro_why_ekf}
 
-A Kalman filter (KF) mixes a model-based prediction with a measurement, weighting each by how much it can be trusted, and it keeps track of its own uncertainty. The standard KF assumes linear (straight-line) equations. The battery breaks this assumption: the resting voltage of a lithium-ion cell is a curved function of its SoC (the open-circuit voltage curve, Section~\ref{sec:bg_ocv}).
-
-The Extended Kalman Filter (EKF) handles curved equations by replacing them, at every step, with their tangent line at the current estimate. This works well when the curve is smooth and the uncertainty is small. Both conditions hold for the battery: the voltage curve is smooth and only mildly bent, and the noise is roughly bell-shaped. EKF-based estimators are also the classic approach to SoC estimation in battery management systems~\cite{plett2004part1,plett2004part3}. A particle filter would also work, but it costs much more computation and brings little benefit for a smooth curve with near-Gaussian noise~\cite{simon2006optimal}. The EKF is therefore the natural choice.
+A Kalman filter combines a model-based prediction with a measurement, weights each by how much it can be trusted, and reports its own uncertainty. The standard filter assumes linear equations, but a battery's resting voltage is a curved function of its SoC (Section~\ref{sec:bg_ocv}). The Extended Kalman Filter (EKF) handles this by using the tangent of the curve at the current estimate. The curve is smooth and only mildly bent, so the EKF fits well, and it is the classic approach to SoC estimation in battery management systems~\cite{plett2004part1,plett2004part3}. A particle filter would also work, but at a much higher computational cost for little benefit here~\cite{simon2006optimal}.
 
 \section{Objectives}\label{sec:intro_objectives}
 
-The objectives of the project are to:
 \begin{enumerate}
-  \item build a MATLAB simulator of a delivery drone and its battery that produces the ``true'' SoC together with realistic, imperfect sensor readings, using a battery model that is deliberately richer than the one the filter assumes;
-  \item design and implement an EKF that estimates the SoC and its uncertainty, learning the battery's internal resistance during flight, and investigate whether the current-sensor bias and the capacity can also be learned;
-  \item design a risk-aware RTH rule that uses both the SoC estimate and its uncertainty to decide when to turn back;
-  \item evaluate the EKF and the RTH rule against simpler baselines (charge counting and a voltage threshold) in single-flight experiments and in a Monte Carlo study of many random missions.
+  \item Build a MATLAB simulator of a delivery drone and its battery that gives the true SoC and realistic, imperfect sensor readings.
+  \item Design an EKF that estimates the SoC and its uncertainty.
+  \item Design a return-to-home (RTH) rule that uses both the estimate and its uncertainty.
+  \item Compare the EKF and the RTH rule with simpler methods (charge counting and a voltage threshold) in single flights and over many random missions.
 \end{enumerate}
 
 \section{Contributions}\label{sec:intro_contributions}
 
-The main features of the project are:
 \begin{itemize}
-  \item an EKF that learns the cell's ohmic resistance $R_0$ during flight. This design was chosen after a design-stage investigation showed that resistance mismatch, not sensor bias, was the main source of SoC error (Section~\ref{sec:m_ekf_investigation});
-  \item an observability study of also learning the current-sensor bias and the capacity, which explains why they cannot be separated from the resistance within one flight;
-  \item a choice of the filter used for decisions based on the honesty of its uncertainty, not only its accuracy: the five-state filter is less accurate on a healthy battery, but stays honest on an aged one, where the most accurate filter is confidently wrong (Section~\ref{sec:m_ekf_choice});
-  \item a process-noise matrix $Q$ derived from the current-sensor noise, rather than guessed (Section~\ref{sec:m_ekf_q}), and a measurement noise that includes an explicit model-error allowance chosen to keep the uncertainty bands honest;
-  \item an honest test set-up: the simulated ``true'' battery has two RC pairs and slightly different parameters, while the filter assumes one RC pair and nominal values (Section~\ref{sec:m_truth_vs_filter});
-  \item a probabilistic RTH rule that turns back when the probability of a safe return drops below a threshold, so that the safety margin grows automatically when the filter is unsure (Section~\ref{sec:m_rth});
-  \item a safety-versus-range trade-off curve, from a sweep of the decision threshold, that shows what each extra level of safety costs in unused battery and deliveries (Section~\ref{sec:r_sweep}).
+  \item An EKF that learns the battery's internal resistance during flight. Tests showed that a wrong resistance value, not the faulty current sensor, caused most of the SoC error (Section~\ref{sec:m_ekf_investigation}).
+  \item A choice of the filter used for decisions based on how honest its uncertainty is, not only on its accuracy. The most accurate filter was confidently wrong on an aged battery (Section~\ref{sec:m_ekf_choice}).
+  \item An RTH rule that turns back when the probability of getting home with a safety reserve drops below 95\%, so the margin grows automatically when the filter is unsure (Section~\ref{sec:m_rth}).
+  \item A safety-versus-wasted-battery trade-off that shows what each extra level of safety costs (Section~\ref{sec:r_sweep}).
 \end{itemize}
-
-\section{Report outline}\label{sec:intro_outline}
-
-Chapter~\ref{ch:background} explains the battery ideas and the Kalman filter theory that the project relies on, with a worked numerical example, and reviews related work. Chapter~\ref{ch:method} describes the simulator, the EKF and the RTH rule in equations. Chapter~\ref{ch:impl} shows how these are implemented in MATLAB. Chapter~\ref{ch:results} presents the results, Chapter~\ref{ch:discussion} discusses them together with the limitations of the approach, and Chapter~\ref{ch:conclusion} concludes. Appendix~\ref{app:code} lists the code.

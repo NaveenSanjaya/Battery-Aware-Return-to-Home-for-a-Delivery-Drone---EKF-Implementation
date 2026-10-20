@@ -38,7 +38,7 @@ The drone flew the \emph{short} mission (three drop-offs, Section~\ref{sec:m_mis
 
 \subsection{OCV curve}
 
-Figure~\ref{fig:r_ocv} shows the OCV curve that the filter believes and the true battery's curve, 5\,mV lower. The two are almost indistinguishable by eye, yet 5\,mV corresponds to about 1\% SoC in the flat middle of the curve, so even this small offset is a real test for the filter. The right-hand axis shows the slope that becomes the first entry of $H$ in \eqref{eq:m_H}. It is several times larger near empty than in the middle, so the voltage corrects the SoC much more strongly at low charge.
+Figure~\ref{fig:r_ocv} shows the OCV curve that the filter believes and the true battery's curve, 5\,mV lower. The two are almost indistinguishable by eye, yet 5\,mV corresponds to about 1\% SoC in the flat middle of the curve, so even this small offset is a real test for the filter. The right-hand axis shows the slope that becomes the first entry of $H$ in \eqref{eq:m_F}. It is several times larger near empty than in the middle, so the voltage corrects the SoC much more strongly at low charge.
 
 \begin{figure}[htbp]
   \centering
@@ -132,7 +132,7 @@ Experiments E1 and E2 were run with \texttt{main\_day3\_ekf.m} (Section~\ref{sec
 
 \subsection{E1: Nominal flight}\label{sec:r_e1}
 
-\textbf{Starting guess.} The true battery started at 95\%. The SoC read from the resting voltage before take-off was about 92\%, roughly 3\% low. Near full charge the OCV curve rises by about 10\,mV per 1\% SoC (Table~\ref{tab:m_ocv}, 90--100\%), so the $-5$\,mV offset of the true curve accounts for about 0.5\% of this, and the rest comes from the noise on the single voltage reading (10\,mV, about 1\% SoC per standard deviation). All three estimators started from this guess.
+\textbf{Starting guess.} The true battery started at 95\%. The SoC read from the resting voltage before take-off was about 92\%, roughly 3\% low. Near full charge the OCV curve rises by about 10\,mV per 1\% SoC (Figure~\ref{fig:bg_ocv_tangent}, 90--100\%), so the $-5$\,mV offset of the true curve accounts for about 0.5\% of this, and the rest comes from the noise on the single voltage reading (10\,mV, about 1\% SoC per standard deviation). All three estimators started from this guess.
 
 \textbf{Charge counting} never corrects the start error and adds the drift caused by the sensor bias. Its error grows linearly from about $-3\%$ to $-5.50\%$ at landing (Figure~\ref{fig:r_soc_error}). The growth matches \eqref{eq:bg_cc_drift}: a $+0.5$\,A bias over about 14\,minutes adds about $-2.4\%$.
 
@@ -148,7 +148,7 @@ Stage~A's mean NIS of 0.54 looks healthy, and this is itself a lesson. Stage~A e
   \item its $\pm 3\sigma$ band collapses from about $\pm 8.5\%$ to about $\pm 2.5\%$;
   \item the $R_0$ estimate jumps from about 7.7--8.0\,m$\Omega$ to about 8.9\,m$\Omega$.
 \end{itemize}
-During take-off the current is almost constant at 30\,A. A voltage that is lower than expected can then be explained equally well by a lower SoC or by a higher $R_0$, so the two cannot be separated, and the filter keeps both uncertain. The measurement Jacobian \eqref{eq:m_H} shows why the current step resolves this. The SoC entry, $d\,\mathrm{OCV}/d\,\mathrm{SoC}$, does not depend on the current, but the $R_0$ entry, $-(I_m - \hat{b})$, halves when the current halves. Only when the current changes does the voltage carry separate information about the two states. The current step provides this \emph{excitation}: the instant voltage jump it causes has the size $R_0\,\Delta I$, which pins down $R_0$, and with $R_0$ known the remaining voltage level pins down the SoC. This is the observability argument of Section~\ref{sec:m_ekf_investigation} seen in a real run, and it is why the stage-B error falls below 2\% exactly 30\,s into the flight, when take-off ends.
+During take-off the current is almost constant at 30\,A. A voltage that is lower than expected can then be explained equally well by a lower SoC or by a higher $R_0$, so the two cannot be separated, and the filter keeps both uncertain. The measurement Jacobian \eqref{eq:m_F} shows why the current step resolves this. The SoC entry, $d\,\mathrm{OCV}/d\,\mathrm{SoC}$, does not depend on the current, but the $R_0$ entry, $-(I_m - \hat{b})$, halves when the current halves. Only when the current changes does the voltage carry separate information about the two states. The current step provides this \emph{excitation}: the instant voltage jump it causes has the size $R_0\,\Delta I$, which pins down $R_0$, and with $R_0$ known the remaining voltage level pins down the SoC. This is the observability argument of Section~\ref{sec:m_ekf_investigation} seen in a real run, and it is why the stage-B error falls below 2\% exactly 30\,s into the flight, when take-off ends.
 
 \begin{figure}[htbp]
   \centering
@@ -159,7 +159,7 @@ During take-off the current is almost constant at 30\,A. A voltage that is lower
 
 \textbf{Resistance estimate.} After the step the $R_0$ estimate settles between about 8.8 and 9.1\,m$\Omega$ and ends the flight at 8.85\,m$\Omega$, against a true value of 8.8\,m$\Omega$ and a starting value of 8.0\,m$\Omega$. Its $\pm 3\sigma$ band, about $\pm 1$\,m$\Omega$ wide, always contains the true value.
 
-\textbf{Is the filter honest?} Figure~\ref{fig:r_e1_innov} compares the measured voltage with the voltage stage~B expected before each update. The expected voltage follows every sag and step. The innovations look like white noise around zero and stay well inside $\pm 3\sqrt{S_k}$ after the first few seconds; the band is wide only at the very start because of the large initial uncertainty. The mean NIS of 0.51 is below 1, so the filter is slightly more cautious than necessary. This is the expected effect of the 10\,mV model-error allowance, chosen on purpose to keep the bands honest (Table~\ref{tab:m_sigmodel}).
+\textbf{Is the filter honest?} Figure~\ref{fig:r_e1_innov} compares the measured voltage with the voltage stage~B expected before each update. The expected voltage follows every sag and step. The innovations look like white noise around zero and stay well inside $\pm 3\sqrt{S_k}$ after the first few seconds; the band is wide only at the very start because of the large initial uncertainty. The mean NIS of 0.51 is below 1, so the filter is slightly more cautious than necessary. This is the expected effect of the 10\,mV model-error allowance, chosen on purpose to keep the bands honest (Section~\ref{sec:m_ekf_investigation}).
 
 \begin{figure}[htbp]
   \centering
@@ -371,7 +371,7 @@ E8 flew each of five scenarios with 20 seeds and all three stages, 300 flights i
   \label{fig:r_e8}
 \end{figure}
 
-The 20-flight averages confirm the single runs and the design-stage checks of Table~\ref{tab:m_stagecheck}.
+The 20-flight averages confirm the single runs and the early Python tests (Section~\ref{sec:m_ekf_choice}).
 \begin{itemize}
   \item \textbf{Stage C is the only consistent filter in E1--E4.} Its band held the truth 100\% of the time in all four scenarios, with mean RMSE between 1.03\% and 1.80\%. Its mean NEES (0.40--0.56) is below 1, so it is slightly cautious, in line with its mean NIS of about 0.49.
   \item \textbf{Stage B is the most accurate on a healthy battery} (1.03\% in E1, 1.64\% in E2), but it fails on the aged battery: 4.72\% RMSE, 27\% coverage, a mean final error of $+8.34\%$ (optimistic) and a mean NEES of 45.6. It is also slightly overconfident with the larger bias (91\% coverage in E3).

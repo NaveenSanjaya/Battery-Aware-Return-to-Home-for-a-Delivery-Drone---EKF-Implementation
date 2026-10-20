@@ -58,7 +58,7 @@ The original plan had a single \texttt{simulate\_truth.m} for the true battery a
 \section{Parameters}\label{sec:i_params}
 %--------------------------------------------------------------------------------------------------
 
-All numbers live in one function, \texttt{battery\_params.m}, which returns a structure with three parts: \texttt{p.filt} (what the filter believes), \texttt{p.true} (the simulated battery) and \texttt{p.sens} (sensor imperfections). Listing~\ref{lst:i_params} shows all three parts. The true values are written as multiples of the filter's values, so the size of each mismatch is visible in the code (Table~\ref{tab:m_params}). The model-error allowance $\sigma_{\text{model}}$ of \eqref{eq:m_Rv} is stored with the filter's beliefs (line 21), and the slow RC pair (lines 31--32) is at its mild default; experiment E6 changes it to the stress-test value.
+All numbers live in one function, \texttt{battery\_params.m}, which returns a structure with three parts: \texttt{p.filt} (what the filter believes), \texttt{p.true} (the simulated battery) and \texttt{p.sens} (sensor imperfections). Listing~\ref{lst:i_params} shows all three parts. The true values are written as multiples of the filter's values, so the size of each mismatch is visible in the code (Table~\ref{tab:m_params}). The model-error allowance $\sigma_{\text{model}}$ of \eqref{eq:m_Q} is stored with the filter's beliefs (line 21), and the slow RC pair (lines 31--32) is at its mild default; experiment E6 changes it to the stress-test value.
 
 \begin{lstlisting}[caption={Filter, truth and sensor parameters (\texttt{config/battery\_params.m}).},label={lst:i_params},firstnumber=15]
 % ---------- What the filter believes (nominal) ----------
@@ -94,7 +94,7 @@ p.sens.sigV = 0.01;            % voltage sensor noise per cell (V, 1 sigma)
 \section{OCV lookup and initial SoC}\label{sec:i_ocv}
 %--------------------------------------------------------------------------------------------------
 
-\texttt{ocv\_lookup.m} (Listing~\ref{lst:i_ocv}) returns the OCV and, when asked for a second output, its slope. It implements the table of Table~\ref{tab:m_ocv} with \texttt{pchip} interpolation and the finite-difference slope \eqref{eq:m_ocv_slope}. The \texttt{pchip} fit is built only once, on the first call, and kept in a \texttt{persistent} variable (lines 16--21); later calls only evaluate it with \texttt{ppval}. This gives exactly the same values as calling \texttt{interp1} with \texttt{'pchip'} every time, but is much faster, which matters for the 300 flights of experiment E8 and the Monte Carlo study. The SoC is clamped to $[0, 1]$ first (line 24), so the function never extrapolates beyond the table. An optional \texttt{offset} argument shifts the curve; the simulator uses it to give the true battery its $-5$\,mV offset, while the filter uses the nominal curve.
+\texttt{ocv\_lookup.m} (Listing~\ref{lst:i_ocv}) returns the OCV and, when asked for a second output, its slope. It implements the table of Figure~\ref{fig:bg_ocv_tangent} with \texttt{pchip} interpolation and the finite-difference slope \eqref{eq:m_ocv_slope}. The \texttt{pchip} fit is built only once, on the first call, and kept in a \texttt{persistent} variable (lines 16--21); later calls only evaluate it with \texttt{ppval}. This gives exactly the same values as calling \texttt{interp1} with \texttt{'pchip'} every time, but is much faster, which matters for the 300 flights of experiment E8 and the Monte Carlo study. The SoC is clamped to $[0, 1]$ first (line 24), so the function never extrapolates beyond the table. An optional \texttt{offset} argument shifts the curve; the simulator uses it to give the true battery its $-5$\,mV offset, while the filter uses the nominal curve.
 
 \begin{lstlisting}[caption={OCV value and slope (\texttt{config/ocv\_lookup.m}).},label={lst:i_ocv},firstnumber=16]
 persistent pp
@@ -129,7 +129,7 @@ soc = min(max(soc, 0), 1);
 \section{The true battery}\label{sec:i_battery}
 %--------------------------------------------------------------------------------------------------
 
-\texttt{battery\_true\_step.m} (Listing~\ref{lst:i_battery}) advances the true battery by one step. Its lines map one-to-one onto the equations of Section~\ref{sec:m_truth}: lines 11--12 compute the decay factors $a_1$ and $a_2$ of \eqref{eq:m_rc_discrete}; line 14 is the SoC update \eqref{eq:m_true_soc}; lines 15--16 are the two RC updates \eqref{eq:m_true_v1}--\eqref{eq:m_true_v2}; and line 18 is the terminal voltage \eqref{eq:m_true_v}, computed at the end of the step with the updated states. The state starts from \texttt{battery\_true\_init.m}, which sets the chosen initial SoC and $V_1 = V_2 = 0$.
+\texttt{battery\_true\_step.m} (Listing~\ref{lst:i_battery}) advances the true battery by one step. Its lines map one-to-one onto the equations of Section~\ref{sec:m_truth}: lines 11--12 compute the decay factors $a_1$ and $a_2$ of \eqref{eq:m_rc_discrete}; line 14 is the SoC update \eqref{eq:m_true_soc}; lines 15--16 are the two RC updates \eqref{eq:m_true_soc}--\eqref{eq:m_true_soc}; and line 18 is the terminal voltage \eqref{eq:m_true_v}, computed at the end of the step with the updated states. The state starts from \texttt{battery\_true\_init.m}, which sets the chosen initial SoC and $V_1 = V_2 = 0$.
 
 \begin{lstlisting}[caption={One step of the true 2-RC battery (\texttt{sim/battery\_true\_step.m}).},label={lst:i_battery},firstnumber=11]
 a1 = exp(-dt / (pt.R1 * pt.C1));
@@ -146,7 +146,7 @@ V = ocv_lookup(b.soc, pt.ocv_offset) - pt.R0 * I - b.V1 - b.V2;
 \section{Sensors}\label{sec:i_sensors}
 %--------------------------------------------------------------------------------------------------
 
-\texttt{read\_sensors.m} (Listing~\ref{lst:i_sensors}) implements the sensor model \eqref{eq:m_sensor_i}--\eqref{eq:m_sensor_v}. MATLAB's \texttt{randn} draws a new standard normal sample at each call, so the noise is independent from step to step, while the bias stays constant.
+\texttt{read\_sensors.m} (Listing~\ref{lst:i_sensors}) implements the sensor model \eqref{eq:m_sensor_i}--\eqref{eq:m_sensor_i}. MATLAB's \texttt{randn} draws a new standard normal sample at each call, so the noise is independent from step to step, while the bias stays constant.
 
 \begin{lstlisting}[caption={Sensor model (\texttt{sim/read\_sensors.m}).},label={lst:i_sensors},firstnumber=9]
 Im = I + ps.bias + ps.sigI * randn;
@@ -157,7 +157,7 @@ Vm = V + ps.sigV * randn;
 \section{Drone and mission}\label{sec:i_drone}
 %--------------------------------------------------------------------------------------------------
 
-\texttt{make\_mission.m} returns the route and the phase durations and currents of Table~\ref{tab:m_phases}. \texttt{drone\_step.m} is a small state machine: the field \texttt{d.mode} holds the current phase, and each call returns the current that phase demands and moves to the next phase when the current one is finished. Listing~\ref{lst:i_drone} shows the first three phases. A decision policy makes the drone turn back simply by setting \texttt{d.mode = 'return'}; the \texttt{return} case then flies it home and lands it.
+\texttt{make\_mission.m} returns the route and the phase durations and currents of Section~\ref{sec:m_mission}. \texttt{drone\_step.m} is a small state machine: the field \texttt{d.mode} holds the current phase, and each call returns the current that phase demands and moves to the next phase when the current one is finished. Listing~\ref{lst:i_drone} shows the first three phases. A decision policy makes the drone turn back simply by setting \texttt{d.mode = 'return'}; the \texttt{return} case then flies it home and lands it.
 
 \begin{lstlisting}[caption={Flight-phase state machine, first three phases (\texttt{sim/drone\_step.m}).},label={lst:i_drone},firstnumber=11]
 switch d.mode
@@ -246,7 +246,7 @@ The filter is stored in a MATLAB structure \texttt{f} that holds the estimate \t
 
 \subsection{Initialisation and stages}\label{sec:i_ekf_init}
 
-Listing~\ref{lst:i_ekf_init} shows the core of \texttt{ekf\_init.m}. Lines 26--28 build the measurement-noise variance \eqref{eq:m_Rv}; the voltage noise is called \texttt{Rv} in the code so that it is never confused with the resistors. The current-noise term uses the nominal $R_0$, so \texttt{Rv} is a constant. Lines 31--32 set the initial estimate \eqref{eq:m_x0} and the initial standard deviations of \eqref{eq:m_P0}, and line 36 the diagonal process-noise terms of Table~\ref{tab:m_tuning}. Lines 38--45 implement the stages of Table~\ref{tab:m_stages}: the vector \texttt{learn} marks which states a stage learns, and lines 44--45 set the initial standard deviation and the process noise of every other state to zero, which freezes it at its nominal value (Section~\ref{sec:m_ekf_stages}). Line 49 builds $P_0$ from the squared standard deviations.
+Listing~\ref{lst:i_ekf_init} shows the core of \texttt{ekf\_init.m}. Lines 26--28 build the measurement-noise variance \eqref{eq:m_Q}; the voltage noise is called \texttt{Rv} in the code so that it is never confused with the resistors. The current-noise term uses the nominal $R_0$, so \texttt{Rv} is a constant. Lines 31--32 set the initial estimate \eqref{eq:m_x0} and the initial standard deviations of $P_0$ in \eqref{eq:m_x0}, and line 36 the diagonal process-noise terms of Table~\ref{tab:m_tuning}. Lines 38--45 implement the stages of Table~\ref{tab:m_stages}: the vector \texttt{learn} marks which states a stage learns, and lines 44--45 set the initial standard deviation and the process noise of every other state to zero, which freezes it at its nominal value (Section~\ref{sec:m_ekf_stages}). Line 49 builds $P_0$ from the squared standard deviations.
 
 \begin{lstlisting}[caption={Noise settings, initial values and stages (\texttt{estimators/ekf\_init.m}).},label={lst:i_ekf_init},firstnumber=24]
 % Noise settings
@@ -280,7 +280,7 @@ f.q = q;
 
 \subsection{Predict}\label{sec:i_ekf_predict}
 
-Listing~\ref{lst:i_ekf_predict} shows the prediction half of \texttt{ekf\_step.m}. Line 12 forms the bias-corrected current $I_m - \hat{b}$ and line 13 the decay factor $a$. Lines 16--20 are the process model \eqref{eq:m_f_soc}--\eqref{eq:m_f_r0} without noise. Lines 22--26 build the Jacobian $F_k$ of \eqref{eq:m_F}: the identity matrix plus its four non-trivial entries. Line 28 is the noise-input vector $G_k$ of \eqref{eq:m_G}, line 29 the process noise $Q_k$ of \eqref{eq:m_Q}, and line 30 the covariance prediction \eqref{eq:bg_kf_ppred}.
+Listing~\ref{lst:i_ekf_predict} shows the prediction half of \texttt{ekf\_step.m}. Line 12 forms the bias-corrected current $I_m - \hat{b}$ and line 13 the decay factor $a$. Lines 16--20 are the process model \eqref{eq:m_f_soc}--\eqref{eq:m_f_r0} without noise. Lines 22--26 build the Jacobian $F_k$ of \eqref{eq:m_F}: the identity matrix plus its four non-trivial entries. Line 28 is the noise-input vector $G_k$ of \eqref{eq:m_Q}, line 29 the process noise $Q_k$ of \eqref{eq:m_Q}, and line 30 the covariance prediction \eqref{eq:bg_kf_ppred}.
 
 \begin{lstlisting}[caption={EKF prediction (\texttt{estimators/ekf\_step.m}).},label={lst:i_ekf_predict},firstnumber=11]
 soc = f.x(1);  v1 = f.x(2);  b = f.x(3);  Cn = f.x(4);  R0 = f.x(5);
@@ -307,7 +307,7 @@ P_pred = F * f.P * F' + Q;                    % uncertainty grows
 
 \subsection{Compare and update}\label{sec:i_ekf_update}
 
-Listing~\ref{lst:i_ekf_update} shows the second half. Line 33 reads the OCV and its slope at the predicted SoC. Lines 34--35 compute the expected voltage $h(\hat{x}_k^-, u_k)$ of \eqref{eq:m_h}, using the predicted bias and resistance, and line 36 the innovation \eqref{eq:bg_kf_innov}. Line 38 is the Jacobian $H_k$ of \eqref{eq:m_H} and line 39 the scalar $S_k$ of \eqref{eq:bg_kf_s}. Because $S_k$ is a single number, line 42 computes the gain with a division instead of a matrix inverse, and line 43 updates the state \eqref{eq:bg_kf_xupd}. Lines 44--46 are the Joseph-form covariance update \eqref{eq:m_joseph} followed by symmetrisation. Lines 48--50 apply the safeguards of Section~\ref{sec:m_ekf_safeguards}. The function also returns the innovation, $S_k$, the gain and the NIS (line 54) for the consistency checks.
+Listing~\ref{lst:i_ekf_update} shows the second half. Line 33 reads the OCV and its slope at the predicted SoC. Lines 34--35 compute the expected voltage $h(\hat{x}_k^-, u_k)$ of \eqref{eq:m_h}, using the predicted bias and resistance, and line 36 the innovation \eqref{eq:bg_kf_innov}. Line 38 is the Jacobian $H_k$ of \eqref{eq:m_F} and line 39 the scalar $S_k$ of \eqref{eq:bg_kf_s}. Because $S_k$ is a single number, line 42 computes the gain with a division instead of a matrix inverse, and line 43 updates the state \eqref{eq:bg_kf_xupd}. Lines 44--46 are the Joseph-form covariance update \eqref{eq:m_joseph} followed by symmetrisation. Lines 48--50 apply the safeguards of Section~\ref{sec:m_ekf_safeguards}. The function also returns the innovation, $S_k$, the gain and the NIS (line 54) for the consistency checks.
 
 For a frozen state the rows and columns of $P$ are zero, so its entry of \texttt{K} is zero and line 43 never moves it. The same code therefore serves all three stages without any \texttt{if} statements.
 
@@ -473,7 +473,7 @@ end
 \section{Decision rule and policies}\label{sec:i_decision}
 %--------------------------------------------------------------------------------------------------
 
-The decision layer has three short functions in \texttt{decision/}. \texttt{trip\_soc.m} (Listing~\ref{lst:i_trip}) is Equation~\eqref{eq:m_dsoc_home}: line 15 is the cruise time \eqref{eq:m_thome}, line 16 the charge for cruising home (with the bias removed from the measured cruise current) and for landing (with the nominal landing current as is), and line 17 divides by the capacity. The same function serves the EKF policies, called with $\hat{b}$ and $\hat{C}_n$, and policy B, called with $b = 0$ and the rated 5\,Ah.
+The decision layer has three short functions in \texttt{decision/}. \texttt{trip\_soc.m} (Listing~\ref{lst:i_trip}) is Equation~\eqref{eq:m_dsoc_home}: line 15 is the cruise time \eqref{eq:m_dsoc_home}, line 16 the charge for cruising home (with the bias removed from the measured cruise current) and for landing (with the nominal landing current as is), and line 17 divides by the capacity. The same function serves the EKF policies, called with $\hat{b}$ and $\hat{C}_n$, and policy B, called with $b = 0$ and the rated 5\,Ah.
 
 \begin{lstlisting}[caption={SoC needed to get home (\texttt{decision/trip\_soc.m}).},label={lst:i_trip},firstnumber=15]
 t_cruise = dist_home / m.v_cruise;                      % s
