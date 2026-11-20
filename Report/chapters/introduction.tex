@@ -2,20 +2,18 @@
 % Chapter 1: Introduction   (the \chapter command is in main.tex)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\section{Problem and approach}\label{sec:intro_problem}
+\section{The problem}\label{sec:intro_problem}
 
-A delivery drone must decide, during flight, when to stop delivering and return home. It cannot measure its remaining charge, the \emph{state of charge} (SoC), directly. It only has a noisy, biased current sensor and a voltage that dips under load.
+A delivery drone must decide during flight when to stop delivering and fly back home. Too late, and the battery can run out before it gets home; too early, and it wastes charge that could have made more deliveries.
 
-Turning back too late risks losing the drone; turning back too early wastes battery and deliveries. A better decision than a fixed safety margin needs both an SoC estimate and a measure of how uncertain it is, so that the margin can shrink when the estimate is precise and grow when it is not.
-
-\label{sec:intro_why_ekf}A Kalman filter provides both: it weights a model-based prediction against a measurement and reports its own uncertainty. Because a battery's resting voltage is a curved function of its SoC (Section~\ref{sec:bg_ocv}), the Extended Kalman Filter (EKF) is used. It is the classic approach in battery management systems~\cite{plett2004part1,plett2004part3}; a particle filter would cost far more computation for little benefit on this smooth curve~\cite{simon2006optimal}.
-
-\section{Objectives and contributions}\label{sec:intro_objectives}\label{sec:intro_contributions}
-
-Using a MATLAB simulator that knows the true SoC, the project aims to:
+To decide, the drone needs to know how much charge is left, the \emph{state of charge} (SoC), given as a percentage from 100\% (full) to 0\% (empty). The SoC cannot be measured directly, and both of the drone's sensors have flaws:
 \begin{itemize}
-  \item design an EKF that estimates the SoC and its uncertainty and learns the internal resistance in flight, the main source of SoC error (Section~\ref{sec:m_ekf_investigation});
-  \item choose the filter used for decisions by how honest its uncertainty is, not only by its accuracy (Section~\ref{sec:m_ekf_choice});
-  \item design a return-to-home (RTH) rule that turns back when the probability of getting home with a safety reserve drops below 95\% (Section~\ref{sec:m_rth});
-  \item compare both with charge counting and a voltage threshold over 500 random missions (Section~\ref{sec:r_sweep}).
+  \item \textbf{Current sensor.} Adding up the current gives the charge used so far, but the sensor is noisy and has a small constant error, so this running total slowly drifts from the truth.
+  \item \textbf{Voltage sensor.} The voltage falls as the battery empties, but it also drops whenever the motors work hard, for example during take-off, so a low reading does not always mean an empty battery.
 \end{itemize}
+
+\section{Approach and objectives}\label{sec:intro_why_ekf}\label{sec:intro_objectives}\label{sec:intro_contributions}
+
+Neither sensor is good enough on its own, so we combine them with an \emph{Extended Kalman Filter} (EKF). The filter uses the current to predict how the SoC changes, then uses the voltage to correct that prediction. It also reports how confident it is, for example ``45\% $\pm$ 2\%'', so the drone can keep a small safety margin when the filter is sure and a larger one when it is not. The \emph{extended} version is needed because voltage and SoC are linked by a curve, not a straight line (Section~\ref{sec:bg_ocv}).
+
+All work is done in a MATLAB simulation that knows the true SoC, so every estimate and decision can be scored. The objectives are to (1) build a drone and battery simulator with realistic sensor errors, (2) design an EKF that estimates the SoC and its uncertainty (Section~\ref{sec:m_ekf}), (3) design a return-home rule that uses this uncertainty (Section~\ref{sec:m_rth}), and (4) compare both with two simple methods over 500 random missions (Chapter~\ref{ch:results}).

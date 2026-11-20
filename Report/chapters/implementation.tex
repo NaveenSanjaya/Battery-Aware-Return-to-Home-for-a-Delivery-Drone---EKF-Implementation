@@ -1,33 +1,35 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Chapter 4: Implementation   (the \chapter command is in main.tex)
-% The two listings are read straight from the code files (firstline/lastline), so they always
-% match the code.
+% The listing is read straight from the code file (firstline/lastline), so it always matches
+% the code. The decision listing is in the appendix.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %--------------------------------------------------------------------------------------------------
-\section{Tools and code structure}\label{sec:i_structure}\label{sec:i_run_flight}\label{sec:i_loop}\label{sec:i_day4}
+\section{Code structure and one simulated flight}\label{sec:i_structure}\label{sec:i_run_flight}\label{sec:i_loop}\label{sec:i_day4}
 %--------------------------------------------------------------------------------------------------
 
-The project uses base MATLAB only, with a time step of 1\,s. Every run fixes the random seed, so it can be repeated exactly, and runs that are compared share the same sensor noise. The code in \texttt{drone\_battery\_ekf/} is split into short files that each do one job: \texttt{config/} holds the battery and sensor parameters and the OCV curve; \texttt{sim/} the true 2-RC battery, the sensors, the drone's flight phases, the routes and the performance measures; \texttt{estimators/} the EKF (stages A--C) and charge counting; and \texttt{decision/} the trip cost, the probability of a safe return and the four policies.
+Everything is written in base MATLAB, with no toolboxes. Every run fixes the random seed, so it gives the same result each time, and runs that are compared use the same sensor noise. The code in \texttt{drone\_battery\_ekf/} is split into short files in four folders: \texttt{config/} (battery and sensor values, OCV curve), \texttt{sim/} (the ``real'' battery, sensors, flight phases, routes and scoring), \texttt{estimators/} (the EKF and charge counting) and \texttt{decision/} (trip cost, $P_{\text{safe}}$ and the four policies).
 
-Every second, a flight runs the same loop: the drone model gives the current demand, the true battery responds, the sensors add bias and noise, the EKF and charge counting update, and, in return-to-home missions, the policy decides whether to turn back. \texttt{run\_flight.m} flies experiments E1--E8 and \texttt{run\_mission\_rth.m} the return-to-home missions. Four main scripts reproduce every result: \texttt{main\_day2\_simulator.m} (simulator check), \texttt{main\_day3\_ekf.m} (E1--E2), \texttt{main\_day4\_experiments.m} (E3--E8, about 20\,s for the 300 flights of E8) and \texttt{main\_day5\_rth.m} (demonstration, 500-mission Monte Carlo in about 95\,s, and threshold sweep).
+Every flight runs the same loop once per second: the drone model gives the current for the flight phase, the simulated battery responds, the sensors add bias and noise, the EKF and charge counting update, and, in return-home missions, the policy decides whether to turn back. The loop stops when the drone lands or the battery dies. Four main scripts reproduce every result: \texttt{main\_day2\_simulator.m} (simulator check), \texttt{main\_day3\_ekf.m} (E1--E2), \texttt{main\_day4\_experiments.m} (E3--E8, about 20\,s) and \texttt{main\_day5\_rth.m} (demonstration, Monte Carlo study in about 95\,s, and threshold sweep).
 
 %--------------------------------------------------------------------------------------------------
 \section{The EKF in code}\label{sec:i_ekf}
 %--------------------------------------------------------------------------------------------------
 
-Listing~\ref{lst:i_ekf_core} is the heart of \texttt{ekf\_step.m}. Lines 16--20 are the process model \eqref{eq:m_f_soc}--\eqref{eq:m_f_r0}, lines 22--30 the Jacobian $F$ and the noise $Q$ of \eqref{eq:m_F} and \eqref{eq:m_Q}, lines 33--39 the expected voltage \eqref{eq:m_h}, the innovation and $H$, and lines 42--46 the gain and the stable covariance update \eqref{eq:m_joseph}. With one voltage measurement, $S$ is a single number and no matrix inverse is needed. All five states are always present; a stage freezes the states it does not learn by giving them zero uncertainty.
+Listing~\ref{lst:i_ekf_core} shows one EKF step from \texttt{ekf\_step.m}. It follows the three steps of Section~\ref{sec:bg_kf}:
+\begin{itemize}
+  \item \textbf{Predict} (lines 16--30): move the state forward~\eqref{eq:m_f_soc}--\eqref{eq:m_f_r0}, build $F$, $G$ and $Q$~\eqref{eq:m_F},~\eqref{eq:m_Q}, and grow the uncertainty;
+  \item \textbf{Compare} (lines 33--39): compute the expected voltage~\eqref{eq:m_h}, the innovation, $H$ and $S$;
+  \item \textbf{Correct} (lines 42--46): apply the gain and the Joseph-form covariance update~\eqref{eq:m_joseph}.
+\end{itemize}
+With only one measurement, $S$ is a single number, so the gain needs a division rather than a matrix inverse. The code always carries all five states; a stage that does not estimate a state gives it zero uncertainty and zero process noise, so it never changes.
 
 \lstinputlisting[firstline=15, lastline=46, firstnumber=15,
-  caption={Predict and update in \texttt{estimators/ekf\_step.m}.}, label={lst:i_ekf_core}]
+  caption={One EKF step in \texttt{estimators/ekf\_step.m}.}, label={lst:i_ekf_core}]
   {\codedir/estimators/ekf_step.m}
 
 %--------------------------------------------------------------------------------------------------
-\section{The decision rule in code}\label{sec:i_decision}
+\section{The return-home rule in code}\label{sec:i_decision}
 %--------------------------------------------------------------------------------------------------
 
-Listing~\ref{lst:i_psafe} turns the filter's estimate into the probability of a safe return, following \eqref{eq:m_margin}--\eqref{eq:m_psafe}. The normal distribution is written with \texttt{erfc}, so no toolbox is needed.
-
-\lstinputlisting[firstline=15, lastline=23, firstnumber=15,
-  caption={Probability of a safe return in \texttt{decision/p\_safe\_return.m}.}, label={lst:i_psafe}]
-  {\codedir/decision/p_safe_return.m}
+\texttt{decision/p\_safe\_return.m} (Listing~\ref{lst:i_psafe} in Appendix~\ref{app:code}) follows the three steps of Section~\ref{sec:m_rth}: it computes the charge needed to get home and the margin, combines the EKF's SoC uncertainty with the trip allowance, and returns $P_{\text{safe}}$. The normal distribution is written as $\Phi(x) = \tfrac{1}{2}\,\mathrm{erfc}(-x/\sqrt{2})$, which is built into base MATLAB, so no toolbox is needed.

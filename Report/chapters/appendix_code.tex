@@ -7,8 +7,9 @@
 % visible TODO instead of stopping the compile.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-This appendix lists the filter set-up and the return-to-home decision, which complement the listings in Chapter~\ref{ch:impl}. The full code, including the simulator, the experiments and the plotting scripts, is in the project's code folder \texttt{drone\_battery\_ekf/}, organised as described in Section~\ref{sec:i_structure}.
+This appendix lists the filter set-up and the return-home decision, which complement the EKF listing in Chapter~\ref{ch:impl}. The full code, including the simulator, the experiments and the plotting scripts, is in the project's code folder \texttt{drone\_battery\_ekf/}, organised as described in Section~\ref{sec:i_structure}.
 
-\codefile{estimators/ekf_init.m}{\texttt{estimators/ekf\_init.m}}
-\codefile{decision/trip_soc.m}{\texttt{decision/trip\_soc.m}}
-\codefile{decision/rth_policy.m}{\texttt{decision/rth\_policy.m}}
+\codefile{estimators/ekf_init.m}{\texttt{estimators/ekf\_init.m}.}
+\lstinputlisting[caption={\texttt{decision/p\_safe\_return.m}.}, label={lst:i_psafe}]{\codedir/decision/p_safe_return.m}
+\codefile{decision/trip_soc.m}{\texttt{decision/trip\_soc.m}.}
+\codefile{decision/rth_policy.m}{\texttt{decision/rth\_policy.m}.}

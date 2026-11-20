@@ -3,87 +3,102 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %--------------------------------------------------------------------------------------------------
-\section{Battery basics}\label{sec:bg_battery}
+\section{How a battery behaves}\label{sec:bg_battery}
 %--------------------------------------------------------------------------------------------------
 
-\label{sec:bg_soc}The \emph{capacity} $C_n$ is the charge a full battery can deliver, in ampere-hours (Ah); it falls as the battery ages. The \emph{state of charge} (SoC) is the fraction of the capacity that remains, from 1 (full) to 0 (empty).
+\label{sec:bg_soc}\textbf{Capacity and state of charge.} The \emph{capacity} $C_n$ is the total charge a full battery can deliver, in ampere-hours (Ah); a 5\,Ah battery can supply 5\,A for one hour. The capacity falls as a battery ages. The \emph{state of charge} (SoC) is the fraction of the capacity that is left, from 1 (full) to 0 (empty). Equations use fractions; the text gives the SoC and its errors in percentage points of SoC.
 
-\label{sec:bg_ocv}When a battery rests, its voltage depends only on its SoC. This resting voltage is the \emph{open-circuit voltage} (OCV). The OCV curve (Figure~\ref{fig:bg_ocv_tangent}) is curved, so a straight-line model cannot describe it, and its slope changes: about 25\,mV per 1\% SoC near empty, but only 5\,mV per 1\% between 20\% and 40\%. Where the curve is flat, the voltage says little about the SoC, so a good filter should become less certain there.
+\label{sec:bg_ocv}\textbf{Resting voltage.} When no current flows, the battery voltage depends only on the SoC. This is the \emph{open-circuit voltage} (OCV), shown in Figure~\ref{fig:bg_ocv_tangent}. Two features matter. First, it is a curve, which is why we need the \emph{Extended} Kalman Filter. Second, its steepness changes: near empty the voltage changes by about 25\,mV per 1\% of SoC, but between 20\% and 50\% by only 5\,mV. Where the curve is flat, a small voltage error looks like a large SoC error, so the voltage is less useful there.
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.55\textwidth]{fig2_ocv_curve.png}
-  \caption{OCV curve of one cell. It is steep near empty and flat between about 20\% and 50\% SoC. The dashed tangent at 40\% SoC is what the EKF uses: close to the curve nearby, wrong far away.}
+  \includegraphics[width=0.75\textwidth]{fig2_ocv_curve.png}
+  \caption[Resting voltage (OCV) of one cell against SoC.]{Resting voltage (OCV) of one cell against SoC. It is steep near empty and flat between about 20\% and 50\%. The dashed line is the straight-line approximation the EKF uses at 40\% SoC: good nearby, poor far away.}
   \label{fig:bg_ocv_tangent}
 \end{figure}
 
-\label{sec:bg_r0}\label{sec:bg_rc}\label{sec:bg_ecm}Under load the voltage drops in two ways. An instant drop $R_0 I$ comes from the internal resistance $R_0$, where $I$ is the current (positive for discharge):
-\begin{equation}
-  \Delta V_{R_0} = R_0\, I .
-  \label{eq:bg_sag}
-\end{equation}
-At 30\,A take-off current and $R_0 = 8$\,m$\Omega$ this is 0.24\,V per cell, so the battery looks emptier than it is. A slower drop $V_1$ builds up over tens of seconds, modelled by a resistor $R_1$ in parallel with a capacitor $C_1$:
-\begin{equation}
-  C_1 \frac{dV_1}{dt} = I - \frac{V_1}{R_1},
-  \label{eq:bg_rc}
-\end{equation}
-with time constant $\tau_1 = R_1 C_1$ (30\,s here). Together these form the equivalent circuit of Figure~\ref{fig:bg_circuit}. The sensor reads
+\label{sec:bg_r0}\label{sec:bg_rc}\label{sec:bg_ecm}\textbf{Voltage under load.} When current $I$ flows (positive when discharging), the voltage drops below the resting voltage in two ways:
+\begin{itemize}
+  \item an \emph{instant drop} $R_0 I$ caused by the internal resistance $R_0$.\label{eq:bg_sag} At the 30\,A take-off current and $R_0 = 8$\,m$\Omega$ this is 0.24\,V per cell, so the battery looks emptier than it is;
+  \item a \emph{slow drop} $V_1$ that builds up over about 30 seconds, modelled by a resistor $R_1$ in parallel with a capacitor $C_1$:
+  \begin{equation}
+    C_1 \frac{dV_1}{dt} = I - \frac{V_1}{R_1}, \qquad \tau_1 = R_1 C_1 = 30\text{\,s}.
+    \label{eq:bg_rc}
+  \end{equation}
+\end{itemize}
+Together these give the circuit model of Figure~\ref{fig:bg_circuit}. The voltage sensor reads the following, and only $V$ and $I$ are measured:
 \begin{equation}
   V = \mathrm{OCV}(\mathrm{SoC}) - R_0\, I - V_1 .
   \label{eq:bg_terminal}
 \end{equation}
-Only $V$ and $I$ are measured; the SoC and $V_1$ must be estimated.
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.45\textwidth]{fig3_equivalent_circuit.png}
-  \caption{One-RC equivalent circuit used by the EKF. The simulated ``true'' battery adds a second, slower RC pair (Section~\ref{sec:m_truth_vs_filter}).}
+  \includegraphics[width=0.55\textwidth]{fig3_equivalent_circuit.png}
+  \caption[Circuit model used by the EKF.]{Circuit model used by the EKF: the OCV, a resistor $R_0$ for the instant drop, and an $R_1$--$C_1$ pair for the slow drop. The simulated ``real'' battery has a second, slower $R$--$C$ pair (Section~\ref{sec:m_truth_vs_filter}).}
   \label{fig:bg_circuit}
 \end{figure}
 
-\label{sec:bg_cc}The simplest SoC tracker is \emph{charge counting}: start from a known SoC and subtract the charge drawn. With time step $\Delta t$ (s) and current $I_k$ (A),
+\label{sec:bg_cc}\textbf{Charge counting.} The simplest way to track the SoC is to start from a known value and subtract the charge used in each time step $k$ of length $\Delta t$ seconds (the 3600 converts ampere-seconds to ampere-hours):
 \begin{equation}
   \mathrm{SoC}_{k} = \mathrm{SoC}_{k-1} - \frac{I_k\, \Delta t}{3600\, C_n}.
   \label{eq:bg_cc}
 \end{equation}
-It never corrects itself, so a wrong start stays wrong, a wrong capacity makes it drift, and a current-sensor bias $b$ adds an error that grows with time:
+Charge counting never corrects itself. A wrong start stays wrong, a wrong capacity makes it drift, and a constant current-sensor error $b$ (the \emph{bias}) builds up over time:
 \begin{equation}
   e(t) = -\frac{b\, t}{3600\, C_n}.
   \label{eq:bg_cc_drift}
 \end{equation}
-A 0.5\,A bias over 15 minutes is 2.5\% of a 5\,Ah battery. Charge counting is used as a baseline.
+For example, a sensor reading 0.5\,A too high makes the SoC of a 5\,Ah battery 2.5\% too low after 15 minutes. Charge counting is used as a \emph{baseline}, a simple method the EKF should beat.
 
 %--------------------------------------------------------------------------------------------------
-\section{From the Kalman filter to the Extended Kalman Filter}\label{sec:bg_kf}
+\section{Using the EKF to estimate the SoC}\label{sec:bg_kf}
 %--------------------------------------------------------------------------------------------------
 
-\label{sec:bg_kf_idea}\label{sec:bg_ss}A Kalman filter balances a prediction against a measurement. For the drone, charge counting \eqref{eq:bg_cc} is the prediction and the voltage \eqref{eq:bg_terminal} is the measurement. The hidden quantities form the state $x_k$; the measured current is the input $u_k$ and the measured voltage is the measurement $z_k$:
-\begin{equation}
-  x_k = f(x_{k-1}, u_k) + w_k, \qquad z_k = h(x_k, u_k) + v_k,
-  \label{eq:bg_process}
-\end{equation}
-where $w_k$ and $v_k$ are zero-mean, bell-shaped (Gaussian) errors with covariances $Q$ (model error) and $R$ (sensor error). The filter keeps an estimate $\hat{x}_k$ and its uncertainty (covariance) $P_k$.
+\label{sec:bg_kf_idea}\label{sec:bg_ss}\label{sec:bg_qr}The idea is simple: \textbf{charge counting predicts the SoC, and the voltage sensor corrects that prediction.} The general model is $x_k = f(x_{k-1}, u_k) + w_k$ and $z_k = h(x_k, u_k) + v_k$, where $w_k$ and $v_k$ are random errors with covariances $Q$ and $R_v$.\label{eq:bg_process} Table~\ref{tab:bg_mapping} lists what each part stands for here.
 
-\label{sec:bg_kf_loop}For a linear model, $f = F x + B u$ and $h = H x$, each step has two parts. \textbf{Predict} with the model (uncertainty grows), then \textbf{update} with the measurement (uncertainty shrinks):
-\begin{align}
-  \hat{x}_k^- &= F \hat{x}_{k-1} + B u_k, \qquad P_k^- = F P_{k-1} F^{\top} + Q, \label{eq:bg_kf_ppred}\\
-  \tilde{y}_k &= z_k - H \hat{x}_k^-, \qquad S_k = H P_k^- H^{\top} + R, \label{eq:bg_kf_innov}\\
-  K_k &= P_k^- H^{\top} S_k^{-1}, \qquad \hat{x}_k = \hat{x}_k^- + K_k \tilde{y}_k, \label{eq:bg_kf_xupd}\\
-  P_k &= (\mathbb{I} - K_k H) P_k^- . \label{eq:bg_kf_pupd}
-\end{align}
-Here ``$-$'' means before the measurement, $\tilde{y}_k$ is the \emph{innovation} (the filter's surprise), $S_k$ its expected variance, and $K_k$ the \emph{Kalman gain}. \label{eq:bg_kf_s}\label{sec:bg_gain}The gain is large when the prediction is uncertain and small when the sensor is noisy or the measurement says little about the state, as on the flat part of the OCV curve. \label{sec:bg_qr}$Q$ and $R$ are the tuning knobs: a large $Q$ makes the filter fast but jumpy, a large $R$ smooth but slow.
+\begin{table}[htbp]
+  \centering
+  \caption{What each part of the EKF means in this project.}
+  \label{tab:bg_mapping}
+  \small
+  \begin{tabular}{@{}lp{0.68\textwidth}@{}}
+    \toprule
+    EKF term & In this project \\
+    \midrule
+    State $x_k$ & SoC and the slow voltage drop $V_1$ (Chapter~\ref{ch:method} adds three more battery values) \\
+    Input $u_k$ & Measured current \\
+    Measurement $z_k$ & Measured voltage \\
+    Process model $f$ & Charge counting~\eqref{eq:bg_cc} and the build-up of $V_1$~\eqref{eq:bg_rc} \\
+    Measurement model $h$ & Circuit equation~\eqref{eq:bg_terminal}: the voltage expected for a given SoC and current \\
+    $Q$ & How much charge counting can be wrong in one step (mainly current-sensor noise) \\
+    $R_v$ & How much the voltage reading can be wrong (sensor noise plus what the circuit model cannot explain) \\
+    $P_k$ & Uncertainty of each state; the square root of its SoC entry is the ``$\pm$'' of the SoC estimate \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
-\label{sec:bg_ekf}The battery model is not linear, because of $\mathrm{OCV}(\mathrm{SoC})$. The EKF replaces $f$ and $h$, at every step, by their tangent at the current estimate. The slopes form the \emph{Jacobians}
-\begin{equation}
-  F_k = \left.\frac{\partial f}{\partial x}\right|_{\hat{x}_{k-1},\,u_k},
-  \qquad
-  H_k = \left.\frac{\partial h}{\partial x}\right|_{\hat{x}_k^-,\,u_k},
-  \label{eq:bg_jacobians}
-\end{equation}
-which replace $F$ and $H$ in \eqref{eq:bg_kf_ppred}--\eqref{eq:bg_kf_pupd}, while the state and expected measurement use the full nonlinear $f$ and $h$. For the battery the key entry of $H_k$ is the OCV slope at the current SoC estimate, the tangent in Figure~\ref{fig:bg_ocv_tangent}. This works well when the curve is smooth and the uncertainty small, as here~\cite{simon2006optimal,welch2006intro}.
+\label{sec:bg_kf_loop}\label{sec:bg_ekf}\label{eq:bg_kf_s}\label{eq:bg_kf_pupd}\label{eq:bg_jacobians}\textbf{One step of the filter.} Every second the filter does three things, using $F_k$ and $H_k$, the Jacobians (slopes) of $f$ and $h$ at the latest estimate, which replace the OCV curve with its tangent (Figure~\ref{fig:bg_ocv_tangent}).
+\begin{enumerate}
+  \item \textbf{Predict the SoC with charge counting.} The current sensor is imperfect, so the uncertainty grows:
+  \begin{equation}
+    \hat{x}_k^- = f(\hat{x}_{k-1}, u_k), \qquad P_k^- = F_k P_{k-1} F_k^{\top} + Q.
+    \label{eq:bg_kf_ppred}
+  \end{equation}
+  \item \textbf{Compare the expected and measured voltage.} The difference between the measured voltage and the voltage the circuit model expects is the \emph{innovation} $\tilde{y}_k$ (10\,mV less than expected suggests a little less charge), and $S_k$ is its expected size:
+  \begin{equation}
+    \tilde{y}_k = z_k - h(\hat{x}_k^-, u_k), \qquad S_k = H_k P_k^- H_k^{\top} + R_v.
+    \label{eq:bg_kf_innov}
+  \end{equation}
+  \item \textbf{Correct the SoC.} The Kalman gain $K_k$ decides how much of the difference is used, and the uncertainty shrinks:
+  \begin{equation}
+    K_k = P_k^- H_k^{\top} S_k^{-1}, \qquad \hat{x}_k = \hat{x}_k^- + K_k \tilde{y}_k, \qquad P_k = (\mathbb{I} - K_k H_k) P_k^- .
+    \label{eq:bg_kf_xupd}
+  \end{equation}
+\end{enumerate}
 
-%--------------------------------------------------------------------------------------------------
-\section{Related work}\label{sec:bg_related}\label{sec:bg_example}
-%--------------------------------------------------------------------------------------------------
-
-Plett's three-part paper~\cite{plett2004part1,plett2004part2,plett2004part3} and textbook~\cite{plett2015bms} are the classic references for EKF battery estimation and equivalent-circuit models, including adding unknown parameters such as resistance or capacity to the state, as done here; MathWorks provides a MATLAB example~\cite{mathworks_ekf_battery}, and Simon~\cite{simon2006optimal} and Welch and Bishop~\cite{welch2006intro} cover the filters themselves. For drones, an EKF has been used for UAV battery SoC estimation~\cite{hal_uav_ekf}, remaining-flight-time prediction has been verified for electric unmanned vehicles~\cite{ijphm_flight_time}, and Dibbern et al.~\cite{purdue_jate_comparison} found a UKF more accurate than an EKF and charge counting on delivery missions, with parameter identification mattering more than the load profile. Public flight and cell datasets~\cite{cmu_dji_dataset,cmu_evtol_dataset,cmu_evtol_paper,mcmaster_lg_hg2} exist, but this project uses simulation so that the true SoC is always known.
+\label{sec:bg_gain}\textbf{What this means for the battery.}
+\begin{itemize}
+  \item \textbf{The voltage is only as useful as the OCV curve is steep.} The SoC entry of $H_k$ is the OCV slope, so the gain is large near empty. On the flat part, a 10\,mV error looks like a 2\% SoC error, so the gain is small and the uncertainty grows. The filter's ``$\pm$'' follows the curve, which the return-home rule uses later.
+  \item \textbf{A low voltage can mean low charge or a large load.} At a steady current, less charge and a larger drop $R_0 I$ look the same. When the current changes, for example at the end of take-off, only $R_0 I$ changes, which lets the filter learn the resistance (Section~\ref{sec:m_ekf_investigation}).
+\end{itemize}
