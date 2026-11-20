@@ -1,4 +1,4 @@
-%% Day 3 - First EKF: experiments E1 (normal flight) and E2 (wrong start)
+%% Run 2 - First EKF: experiments E1 (normal flight) and E2 (wrong start)
 % Flies the 'short' mission and compares three ways of tracking SoC:
 %   Charge counting  - adds up the measured current (baseline)
 %   EKF stage A      - learns SoC and V1
@@ -72,13 +72,13 @@ legend('\pm3\sigma', 'Stage B estimate', 'Location', 'southeast');
 title('E1: stage B learns that the real battery has more resistance than assumed');
 
 %% Save
-out = fullfile(root, 'results', 'day3');
+out = fullfile(root, 'results', 'run2_filter_E1_E2');
 if ~exist(out, 'dir'), mkdir(out); end
 save_fig(fig1, fullfile(out, 'fig_e1_voltage_innovation.png'));
 save_fig(fig2, fullfile(out, 'fig_soc_tracking.png'));
 save_fig(fig3, fullfile(out, 'fig_soc_error.png'));
 save_fig(fig4, fullfile(out, 'fig_r0_estimate.png'));
-save(fullfile(out, 'day3_runs.mat'), 'r1A', 'r1B', 'r2A', 'r2B', 'p', 'm');
+save(fullfile(out, 'filter_runs.mat'), 'r1A', 'r1B', 'r2A', 'r2B', 'p', 'm');
 fprintf('Figures saved in %s\n', out);
 
 %% ---------------- Local functions ----------------

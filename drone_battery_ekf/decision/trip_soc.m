@@ -8,7 +8,7 @@ function dsoc = trip_soc(dist_home, I_cruise, b, Cn, m)
 %   m         : mission (speed, landing time and current)
 %
 % The cruise part uses the same drain rate the filter uses, (I - b)/Cn,
-% because that combination is what the voltage makes observable (Day 4).
+% because that combination is what the voltage makes observable (experiments E3 and E4).
 % I_cruise is a MEASURED current, so the bias is removed from it; the
 % landing current m.I_land is a nominal TRUE current, so it is used as is.
 

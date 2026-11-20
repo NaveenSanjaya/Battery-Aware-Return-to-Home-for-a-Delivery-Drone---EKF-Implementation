@@ -43,7 +43,7 @@ Table~\ref{tab:r_e1e2} compares charge counting with stages A and B on the same 
 
 \textbf{A wrong start.} In E2 the battery really started at 85\%, but every estimator assumed it was full (Figure~\ref{fig:r_soc_tracking}). Charge counting never noticed (at landing: about 9\% true, 21\% believed), while stage~B corrected the wrong start within 42\,s.
 
-\textbf{The end of take-off} was the key moment for stage~B in both flights. During the steady 30\,A climb, a lower SoC and a higher resistance look the same (Section~\ref{sec:bg_kf}); when the current stepped down to 15\,A, they separated. The resistance estimate jumped at that moment from 8.0 to about 8.8\,m$\Omega$ and ended at 8.85\,m$\Omega$ (true 8.8).
+\textbf{End of take-off.} In both flights, stage~B learned the resistance at the end of take-off. During the steady 30\,A climb, a lower SoC and a higher resistance look the same (Section~\ref{sec:bg_kf}); when the current stepped down to 15\,A, they separated. The resistance estimate jumped at that moment from 8.0 to about 8.8\,m$\Omega$ and ended at 8.85\,m$\Omega$ (true 8.8).
 
 \textbf{Health check.} The innovations looked like random noise of the expected size (Figure~\ref{fig:r_innovation}), with a mean NIS of 0.51, as expected.
 
@@ -51,13 +51,13 @@ Table~\ref{tab:r_e1e2} compares charge counting with stages A and B on the same 
   \centering
   \begin{subfigure}[t]{0.49\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{day3_soc_tracking.png}
+    \includegraphics[width=\textwidth]{run2_filter_E1_E2/fig_soc_tracking.png}
     \caption{SoC tracking in E1 (top) and E2 (bottom).}
     \label{fig:r_soc_tracking}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.49\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{day3_e1_voltage_innovation.png}
+    \includegraphics[width=\textwidth]{run2_filter_E1_E2/fig_e1_voltage_innovation.png}
     \caption{E1, stage B: expected and measured voltage (top) and innovation (bottom).}
     \label{fig:r_innovation}
   \end{subfigure}
@@ -67,42 +67,42 @@ Table~\ref{tab:r_e1e2} compares charge counting with stages A and B on the same 
 
 \subsection{Stress tests (E3--E7)}\label{sec:r_day4_setup}
 
-Each stress test makes one thing harder (start from 10 averaged resting readings).
+Each stress test changes one condition; all start from the average of 10 resting readings.
 
-\label{sec:r_e3}\textbf{Sensor bias (E3).} With the current sensor reading 0.8\,A too high, charge counting ended 4.8\% too low, while stages B and C stayed within 2.5\% (RMSE 1.28\% and 1.58\%). Stage~C estimated only part of the bias ($+0.33$\,A of $+0.8$\,A), since one flight cannot separate it from the resistance, but its SoC stayed right.
+\label{sec:r_e3}\textbf{Sensor bias (E3).} With the current sensor reading 0.8\,A too high, charge counting ended 4.8\% too low, while stages B and C stayed within 2.5\% (RMSE 1.28\% and 1.58\%). Stage~C estimated only part of the bias ($+0.33$\,A of $+0.8$\,A), but its SoC stayed right.
 
-\label{sec:r_e4}\textbf{Aged battery (E4).} This is the most important stress test, because it is the dangerous case (Figure~\ref{fig:r_e4}): the battery held only 85\% of its rated capacity. Charge counting ended 10.2\% too high, and stage~B 8.5\% too high, with the true SoC inside its band only 28\% of the time. Stage~B cannot change its capacity, so it blamed the lower voltage on a higher resistance instead of a smaller battery. Stage~C ended only 0.2\% off (RMSE 0.80\%), and its capacity estimate fell from 5.0 to 4.45\,Ah (true value 4.25). Its bias estimate even had the wrong sign, but together with the capacity it gave almost the right drain rate~\eqref{eq:m_rate}, which is what the SoC depends on.
+\label{sec:r_e4}\textbf{Aged battery (E4).} Here the battery held only 85\% of its rated capacity (Figure~\ref{fig:r_e4}), the case where an optimistic estimate is most dangerous. Charge counting ended 10.2\% too high, and stage~B 8.5\% too high, with the true SoC inside its band only 28\% of the time. Stage~B cannot change its capacity, so it blamed the lower voltage on a higher resistance instead of a smaller battery. Stage~C ended only 0.2\% off (RMSE 0.80\%), and its capacity estimate fell from 5.0 to 4.45\,Ah (true value 4.25). Its bias estimate had the wrong sign, but the drain rate~\eqref{eq:m_rate}, which the SoC depends on, was almost right.
 
 \begin{figure}[htbp]
   \centering
   \begin{subfigure}[t]{0.49\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{day4_e4_aged.png}
+    \includegraphics[width=\textwidth]{run3_stress_tests_E3_E8/fig_e4_aged.png}
     \caption{E4, aged battery: SoC error (top) and stage C's capacity estimate (bottom).}
     \label{fig:r_e4}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.49\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{day4_e7_flat_ocv.png}
+    \includegraphics[width=\textwidth]{stress_e7_flat_ocv.png}
     \caption{E7: SoC uncertainty ($1\sigma$) against true SoC, with the OCV slope.}
     \label{fig:r_e7}
   \end{subfigure}
-  \caption[Stress tests: aged battery (E4) and flat part of the curve (E7).]{Stress tests. (a) Charge counting and stage B drift to about 8--10\% too high, while stage C stays near zero and moves its capacity estimate towards the true 4.25\,Ah. (b) The flight runs from right to left. Stage C's uncertainty rises where the OCV curve is flat and dips at the small bump near 65\% SoC.}
+  \caption[Stress tests: aged battery (E4) and flat part of the curve (E7).]{Stress tests. (a) Charge counting and stage B drift to about 8--10\% too high, while stage C stays near zero and moves its capacity estimate towards the true 4.25\,Ah. (b) The flight runs from left to right as the SoC falls. Stage C's uncertainty rises where the OCV curve is flat and dips at the small bump near 65\% SoC.}
   \label{fig:r_stress}
 \end{figure}
 
-\label{sec:r_e5}\textbf{Tuning (E5).} With $R_v \times 0.01$ the filter believed its voltage sensor was almost perfect and chased the noise: it swung to 13\% too low during take-off, was honest only 30\% of the time, and its NIS rose to 32, a clear warning sign. With $R_v \times 100$ it stayed honest, but its band was far too wide for useful decisions. $Q \times 100$ made it jumpy (RMSE 2.35\%), and $Q \times 0.01$ was slightly more accurate (0.67\% vs 1.06\%) but less honest (94\%), so the chosen tuning was kept.
+\label{sec:r_e5}\textbf{Tuning (E5).} With $R_v \times 0.01$ the filter chased the voltage noise: it swung to 13\% too low during take-off, was honest only 30\% of the time, and its NIS rose to 32, a clear warning sign. With $R_v \times 100$ it stayed honest, but its band was far too wide for useful decisions. $Q \times 100$ made it jumpy (RMSE 2.35\%), and $Q \times 0.01$ was slightly more accurate (0.67\% vs 1.06\%) but less honest (94\%), so the chosen tuning was kept.
 
-\label{sec:r_e6}\textbf{Strong model difference (E6).} With the stronger slow pair every filter got worse: over 20 flights (Table~\ref{tab:r_e8}) even stage~C covered the truth only 83\% of the time, and charge counting beat every filter (RMSE 1.83\% against 2.37--5.10\%). An EKF is only as good as its model.
+\label{sec:r_e6}\textbf{Strong model difference (E6).} With the stronger slow pair every filter got worse: over 20 flights (Table~\ref{tab:r_e8}) even stage~C covered the truth only 83\% of the time, and charge counting beat every filter (RMSE 1.83\% against 2.37--5.10\%).
 
-\label{sec:r_e7}\textbf{Flat part of the curve (E7).} As the flight entered the flat part of the OCV curve, where the slope falls from about 8 to 5\,mV per 1\% of SoC, stage~C's uncertainty rose from 1.5\% to 2.2\% (Figure~\ref{fig:r_e7}). It dipped near 65\% SoC, where the curve has a small bump, so the filter becomes less sure exactly where the voltage tells it less. Stage~B's uncertainty kept shrinking, as estimating the resistance kept adding information.
+\label{sec:r_e7}\textbf{Flat part of the curve (E7).} As the flight entered the flat part of the OCV curve, where the slope falls from about 8 to 5\,mV per 1\% of SoC, stage~C's uncertainty rose from 1.5\% to 2.2\% (Figure~\ref{fig:r_e7}). It dipped near 65\% SoC, where the curve has a small bump, so the filter becomes less sure exactly where the voltage tells it less. Stage~C's uncertainty is also larger and grows partly because it carries the bias and capacity uncertainty into the SoC through the drain rate; stage~B's kept shrinking.
 
 \subsection{Comparison over 20 flights (E8)}\label{sec:r_e8}
 
-E8 repeats five scenarios over 20 random flights each (Table~\ref{tab:r_e8}).
+E8 repeats five scenarios over 20 random flights each (Table~\ref{tab:r_e8}). Its 10-reading start makes its E1 and E2 numbers differ from Table~\ref{tab:r_e1e2}.
 \begin{itemize}
   \item \textbf{Stage C} is the only filter honest in all four normal scenarios (E1--E4), with RMSE 1.0--1.8\%.
-  \item \textbf{Stage B} is the most accurate on a healthy battery but fails on an aged one (E4).
+  \item \textbf{Stage B} is the most accurate on a healthy battery, but fails on an aged one (E4) and is borderline in E3 (91\%).
   \item \textbf{Stage A} is never honest, even though its NIS looked normal (about 0.5): its NEES was 30 to 400, so its error was about 5 to 20 times its own $\sigma$, and a real drone could not detect this from its own signals. Its good E4 accuracy is a coincidence: its low reading from the resistance error partly cancels the smaller battery's high one.
 \end{itemize}
 These results confirm stage~C as the filter for the return-home decision.
@@ -143,17 +143,17 @@ The demonstration mission (aged battery, sensor 0.5\,A low, 10\% headwind) was f
   \centering
   \begin{subfigure}[t]{0.49\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{day5_demo_decision.png}
+    \includegraphics[width=\textwidth]{run4_return_home/fig_demo_decision.png}
     \caption{Demonstration mission.}
     \label{fig:r_demo_decision}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.49\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{day5_tradeoff.png}
+    \includegraphics[width=\textwidth]{rth_tradeoff.png}
     \caption{Safety against wasted battery (200 missions).}
     \label{fig:r_tradeoff}
   \end{subfigure}
-  \caption[Return-home decisions.]{Return-home decisions. (a) Top: probability of a safe return and each policy's turn-back time. Middle: EKF estimate with its band, charge counting, and the charge needed to get home plus the reserve (green). Bottom: true SoC under each policy; Counting runs out. (b) Each point of Voltage is a voltage threshold and each point of EKF-risk a probability threshold; bottom-left is best. Legends: A = Voltage, B = Counting, C = EKF-mean, D = EKF-risk.}
+  \caption[Return-home decisions.]{Return-home decisions. (a) Top: probability of a safe return and each policy's turn-back time. Middle: EKF estimate with its band, charge counting, and the charge needed to get home plus the reserve (green). Bottom: true SoC under each policy; Counting runs out. The late dip in the top panel happens on the way home, when no decision is made. (b) Each point of Voltage is a voltage threshold and each point of EKF-risk a probability threshold; best is low on the plot and just right of zero unused battery. In (a), A = Voltage, B = Counting, C = EKF-mean, D = EKF-risk.}
   \label{fig:r_rth}
 \end{figure}
 
@@ -188,4 +188,4 @@ The stage~C EKF's SoC RMSE was 1.31\% (charge counting: 3.35\%), with the truth 
   \end{tabular}
 \end{table}
 
-\label{sec:r_sweep}\textbf{Safety versus wasted battery.} Repeating 200 missions with other settings (Figure~\ref{fig:r_tradeoff}) showed that EKF-risk never broke its promise: at 80, 90, 95 and 99\% it broke the reserve in 9.5, 4.0, 2.0 and 0\% of missions, against the promised 20, 10, 5 and 1\%. It is about twice as safe as promised (cautious tuning); going from 90\% to 99\% cost 3.2\% more unused battery. No voltage threshold was safe and efficient: 3.40\,V let 96\% of batteries die, and 3.55\,V, as safe as EKF-risk, wasted 17.9\% and halved the deliveries.
+\label{sec:r_sweep}\textbf{Safety versus wasted battery.} Repeating 200 missions with other settings (Figure~\ref{fig:r_tradeoff}) showed that EKF-risk never broke its promise: at 80, 90, 95 and 99\% it broke the reserve in 9.5, 4.0, 2.0 and 0\% of missions, against the promised 20, 10, 5 and 1\% (2.0\% at 95\% on these 200; 2.8\% on all 500), about twice as safe as promised, from the cautious filter and the trip allowance; 90\% to 99\% cost 3.2\% more unused battery. No voltage threshold was safe and efficient: 3.40\,V let 96\% of batteries die, and 3.55\,V, as safe as EKF-risk, wasted 17.9\% and halved the deliveries.

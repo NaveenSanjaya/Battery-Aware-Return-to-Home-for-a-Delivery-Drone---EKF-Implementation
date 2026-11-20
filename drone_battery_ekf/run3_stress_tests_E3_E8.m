@@ -1,4 +1,4 @@
-%% Day 4 - Experiments E3 to E8: stress-testing the filter
+%% Run 3 - Experiments E3 to E8: stress-testing the filter
 %   E3  current sensor reads 0.8 A too high
 %   E4  aged battery: only 85% of its rated capacity
 %   E5  tuning: what happens when Q and R are set badly
@@ -122,7 +122,7 @@ yyaxis right;
 s = linspace(0.15, 0.95, 200);  [~, sl] = ocv_lookup(s);
 plot(100*s, 1000*sl/100, 'Color', [0.85 0.45 0.1], 'LineWidth', 1);
 ylabel('OCV slope (mV per 1% SoC)');
-set(gca, 'XDir', 'reverse');  xlabel('True SoC (%)  \leftarrow flight goes this way');
+set(gca, 'XDir', 'reverse');  xlabel('True SoC (%)  (flight goes this way \rightarrow)');
 legend('Stage B uncertainty', 'Stage C uncertainty', 'OCV slope', 'Location', 'northwest');
 title('E7: where the curve is flat (low slope), stage C becomes less sure');
 
@@ -180,7 +180,7 @@ ylabel('Truth inside \pm3\sigma (%)');  legend(meth(2:4), 'Location', 'northouts
 title('Honesty: how often the truth was inside the filter''s own band (higher is better)');
 
 %% Save
-out = fullfile(root, 'results', 'day4');
+out = fullfile(root, 'results', 'run3_stress_tests_E3_E8');
 if ~exist(out, 'dir'), mkdir(out); end
 save_fig(figE3, fullfile(out, 'fig_e3_bias.png'));
 save_fig(figE4, fullfile(out, 'fig_e4_aged.png'));
@@ -189,7 +189,7 @@ save_fig(figE6, fullfile(out, 'fig_e6_stress.png'));
 save_fig(figE7, fullfile(out, 'fig_e7_flat_ocv.png'));
 save_fig(figE8, fullfile(out, 'fig_e8_summary.png'));
 writetable(T, fullfile(out, 'e8_summary.csv'));
-save(fullfile(out, 'day4_runs.mat'), 'r3B', 'r3C', 'r4B', 'r4C', 'rT', 'r6A', 'r6B', 'r6C', 'r7B', 'r7C', 'R', 'T', 'sc');
+save(fullfile(out, 'stress_runs.mat'), 'r3B', 'r3C', 'r4B', 'r4C', 'rT', 'r6A', 'r6B', 'r6C', 'r7B', 'r7C', 'R', 'T', 'sc');
 fprintf('\nFigures and e8_summary.csv saved in %s\n', out);
 
 %% ---------------- Local functions ----------------

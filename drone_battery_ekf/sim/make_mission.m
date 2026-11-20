@@ -1,9 +1,9 @@
 function m = make_mission(name)
 % MAKE_MISSION  Delivery route and the current the drone draws in each phase.
 %
-%   m = make_mission('short')  3 drops, finishes with charge to spare (Day 2 test)
+%   m = make_mission('short')  3 drops, finishes with charge to spare (simulator check, filter tests)
 %   m = make_mission('long')   6 drops, too long for one battery - the drone
-%                              MUST decide when to turn back (Day 5)
+%                              MUST decide when to turn back (return-home study)
 %
 % Positions are in metres, home is at (0, 0).
 

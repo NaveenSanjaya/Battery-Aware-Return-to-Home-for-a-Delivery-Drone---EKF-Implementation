@@ -8,12 +8,12 @@
 
 The project has three parts that run together every second (Figure~\ref{fig:m_system}): a \textbf{simulator} that flies the drone, works out the true battery state and produces imperfect sensor readings; the \textbf{estimators} (the EKF, charge counting and a voltage threshold); and a \textbf{return-home rule}. The estimators see only the sensor readings; the true SoC is used only for scoring.
 
-\label{sec:m_assumptions}The drone carries a 5\,Ah lithium-ion pack of six cells in series. The same current flows through every cell, so we model one cell, and all values are per cell. Everything runs once per second ($\Delta t = 1$\,s).
+\label{sec:m_assumptions}The drone carries a 5\,Ah lithium-ion pack of six cells in series. The same current flows through every cell, so we model one cell, and all values are per cell. The time step is $\Delta t = 1$\,s.
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.56\textwidth]{fig1_system_overview.png}
-  \caption[System overview.]{System overview. The estimators see only the sensor readings; the true values are used only for scoring. (The EKF block lists four states; the final filter also estimates $R_0$, Section~\ref{sec:m_ekf_stages}.)}
+  \includegraphics[width=0.5\textwidth]{fig1_system_overview.png}
+  \caption[System overview.]{System overview. The estimators see only the sensor readings; the true values are used only for scoring.}
   \label{fig:m_system}
 \end{figure}
 
@@ -21,7 +21,7 @@ The project has three parts that run together every second (Figure~\ref{fig:m_sy
 \section{The simulated battery}\label{sec:m_truth_vs_filter}
 %--------------------------------------------------------------------------------------------------
 
-A filter tested on its own model looks almost perfect, which never happens with a real battery, so the simulated ``real'' battery is deliberately different (Table~\ref{tab:m_params}): it has a \textbf{second, slower $R$--$C$ pair} that the filter does not know about, \textbf{resistances} about 10\% different, and a \textbf{resting-voltage curve} 5\,mV lower.
+So that the filter is not tested on its own assumptions, the simulated ``real'' battery differs from the filter's model (Table~\ref{tab:m_params}): it has a \textbf{second, slower $R$--$C$ pair} that the filter does not know about, \textbf{resistances} about 10\% different, and a \textbf{resting-voltage curve} 5\,mV lower.
 
 \label{sec:m_rc_discrete}\label{sec:m_truth}The current is constant during each 1-second step, so each $R$--$C$ pair~\eqref{eq:bg_rc} is updated exactly, with $a_i$ the fraction of the slow drop that remains after one step:
 \begin{equation}
@@ -37,7 +37,7 @@ where $\delta_{\text{OCV}}$ is the 5\,mV shift. The battery counts as dead if it
 
 \begin{table}[htbp]
   \centering
-  \caption{Battery values per cell for the filter and the simulated ``real'' battery (\texttt{config/battery\_params.m}).}
+  \caption{Battery values per cell for the filter and the simulated ``real'' battery (\texttt{config/battery\_params.m}). E1--E8: Table~\ref{tab:m_experiments}.}
   \label{tab:m_params}
   \small
   \begin{tabular}{@{}lccl@{}}
@@ -54,7 +54,7 @@ where $\delta_{\text{OCV}}$ is the 5\,mV shift. The battery counts as dead if it
   \end{tabular}
 \end{table}
 
-\label{sec:m_params}\label{sec:m_why_mismatch}\textbf{How large the difference should be.} The slow pair matters most. While setting up the simulator, a first value $R_2 = 4$\,m$\Omega$ was tried (Section~\ref{sec:r_sim}). At 15\,A it adds about 60\,mV of unexplained drop, which on the flat part of the curve looks like about 12\% of SoC. That is harsher than any reasonably measured model, so the default was reduced to 1.5\,m$\Omega$ (about 23\,mV), and 4\,m$\Omega$ (with $C_2$ lowered to keep the 400\,s build-up) was kept as a stress test (E6).
+\label{sec:m_params}\label{sec:m_why_mismatch}\textbf{How large the difference should be.} The slow pair matters most. The first value tried while setting up the simulator, $R_2 = 4$\,m$\Omega$ (Section~\ref{sec:r_sim}), adds about 60\,mV of unexplained drop at 15\,A, which looks like about 12\% of SoC on the flat part of the curve. That is harsher than any reasonably measured model, so the default became 1.5\,m$\Omega$ (about 23\,mV), and 4\,m$\Omega$ was kept as a stress test (E6, Section~\ref{sec:m_experiments}).
 
 %--------------------------------------------------------------------------------------------------
 \section{Sensors and flight}\label{sec:m_sensors}\label{sec:m_mission}
@@ -112,20 +112,20 @@ This gives $R_v \approx 2.0 \times 10^{-4}$\,V$^2$, so the model allowance rough
 
 \subsection{Starting values and checks}\label{sec:m_ekf_init}\label{sec:m_ekf_safeguards}\label{sec:m_ekf_consistency}
 
-Before take-off the battery is at rest, so the starting SoC is read from the resting voltage (a single reading in E1 and E2; the average of 10 readings in E3--E8 and the Monte Carlo study), with $\pm 3\%$ uncertainty:
+Before take-off the battery is at rest, so the starting SoC is read from the resting voltage (a single reading in experiments E1 and E2; the average of 10 readings in E3--E8 and the Monte Carlo study), with a standard deviation of 3\%:
 \begin{equation}
   \hat{x}_0 = \begin{bmatrix} \widehat{\mathrm{SoC}}_0 & 0 & 0 & 5.0 & 0.008 \end{bmatrix}^{\top}, \quad P_0 = \mathrm{diag}\!\left(0.03^2,\, 0.01^2,\, 1^2,\, 0.5^2,\, 0.004^2\right).
   \label{eq:m_x0}
 \end{equation}
 The covariance is updated in the Joseph form, $P_k = (\mathbb{I} - K_k H_k) P_k^- (\mathbb{I} - K_k H_k)^{\top} + K_k R_v K_k^{\top}$, which gives the same result as~\eqref{eq:bg_kf_xupd} but keeps $P$ symmetric and positive despite rounding errors,\label{eq:m_joseph} and the SoC, capacity and resistance are kept within physical limits.
 
-\textbf{Is the filter's ``$\pm$'' honest?} The return-home rule trusts the filter's uncertainty, so this is checked in three ways. \textbf{Coverage} is how often the true SoC is inside the $\pm 3\sigma$ band (ideally 99.7\%). The \textbf{NEES}, the squared SoC error divided by its variance, should be about 1 (possible only in simulation); a NEES of 100 means the error is about 10 times $\sigma$. The \textbf{NIS}, the squared innovation divided by $S$, is expected to be about 0.5 here because the model allowance doubles $R_v$; values well above 1 are a warning. A filter counts as \emph{honest} (or \emph{consistent}) here when its coverage is at least 95\% and its NEES is not well above 1; a NEES below 1 means it is cautious, which is acceptable for safety.
+\textbf{Consistency checks.} The return-home rule relies on the filter's uncertainty, so it is checked in three ways. \textbf{Coverage} is how often the true SoC is inside the $\pm 3\sigma$ band (ideally 99.7\%). The \textbf{NEES}, the squared SoC error divided by its variance, should be about 1 (possible only in simulation); a NEES of 100 means the error is about 10 times $\sigma$. The \textbf{NIS}, the squared innovation divided by $S$, is expected to be about 0.5 here because the model allowance doubles $R_v$; values well above 1 are a warning. A filter counts as \emph{honest} (or \emph{consistent}) here when its coverage is at least 95\% (not 99.7\%: errors are correlated in time, so coverage over one flight is noisy) and its NEES is not well above 1; a NEES below 1 means it is cautious, which is acceptable for safety.
 
 \subsection{Three versions of the filter, and why the resistance was added}\label{sec:m_ekf_stages}\label{sec:m_ekf_investigation}
 
 Three versions (stages) are compared: \textbf{stage A} estimates only the SoC and $V_1$, \textbf{stage B} also estimates $R_0$, and \textbf{stage C} estimates all five states. A state a stage does not estimate is fixed at its nominal value.
 
-\textbf{Why the resistance was added.} In early tests the original filter (stage~A) read the SoC about 2.5\% too low and was overconfident: its band held the true SoC only about 16\% of the time. Switching on the model differences one at a time (Table~\ref{tab:m_ablation}) showed that the resistance was the main cause. The real battery's voltage drops more under load than the filter expects, and the filter can only explain the extra drop as a lower SoC. At 15\,A, a 10\% resistance error is 12\,mV, which on the flat part of the curve looks like 2.4\% less charge.
+\textbf{Why the resistance was added.} In early tests the original filter (stage~A) read the SoC about 2.5\% too low and was overconfident: its band held the true SoC only about 16\% of the time. Switching on the model differences one at a time (Table~\ref{tab:m_ablation}) showed that the resistance was the main cause. The real voltage drops more under load than expected, and the filter can only explain the extra drop as a lower SoC. At 15\,A, a 10\% resistance error is 12\,mV, which on the flat part of the curve looks like 2.4\% less charge.
 
 \begin{table}[htbp]
   \centering
@@ -163,7 +163,7 @@ The voltage tracks the SoC over time, so it shows how fast the SoC falls, but no
 \section{Return-home rule}\label{sec:m_rth}
 %--------------------------------------------------------------------------------------------------
 
-Every second the rule asks: \emph{if the drone turned back now, how sure is it of landing with at least 10\% charge left?} It answers in three steps.
+Every second, the rule estimates the probability that the drone, if it turned back now, would land with at least 10\% charge left. This is done in three steps.
 
 \label{sec:m_rth_cost}\textbf{1. Charge needed to get home.} The drone flies straight home from distance $d_{\text{home}}$ at $v_{\text{cruise}} = 10$\,m/s, then lands:
 \begin{equation}
@@ -178,12 +178,12 @@ The cruise part uses the filter's drain rate~\eqref{eq:m_rate}, the quantity the
   \label{eq:m_margin}
 \end{equation}
 
-\textbf{3. How sure the drone is.} The margin is uncertain because of the SoC estimate (variance $P_{k,11}$ from the EKF) and surprises on the way home, such as wind (allowed for as 10\% of the trip cost). Assuming normally distributed errors, the probability that the true margin is above zero is
+\textbf{3. Probability of a safe return.} The margin is uncertain because of the SoC estimate (variance $P_{k,11}$ from the EKF) and surprises on the way home, such as wind. The second is a standard deviation of 10\% of the trip cost, close to the spread of the random wind (about 11\%). Assuming normally distributed errors, the probability that the true margin is above zero is
 \begin{align}
   \sigma_{\text{total},k} &= \sqrt{P_{k,11} + \left(0.1\, \Delta\mathrm{SoC}_{\text{home},k}\right)^2}, \label{eq:m_sigma_total}\\
   P_{\text{safe},k} &= \Phi\!\left(m_k / \sigma_{\text{total},k}\right), \label{eq:m_psafe}
 \end{align}
-where $\Phi$ is the standard normal cumulative distribution function. Only the SoC variance is used, not those of $\hat{b}$ and $\hat{C}_n$: their errors largely cancel in the drain rate, and the 10\% trip allowance covers the rest. $\hat{I}_{\text{cr}}$ is updated only while cruising, so hovers do not affect it. For example, a 3\% margin with $\sigma_{\text{total}} = 2\%$ gives $P_{\text{safe}} = \Phi(1.5) = 93\%$.
+where $\Phi$ is the standard normal cumulative distribution function. Only the SoC variance is used, as the errors in $\hat{b}$ and $\hat{C}_n$ largely cancel in the drain rate and the trip allowance covers the rest; $\hat{I}_{\text{cr}}$ is updated only while cruising. For example, a 3\% margin with $\sigma_{\text{total}} = 2\%$ gives $P_{\text{safe}} = \Phi(1.5) = 93\%$.
 
 The drone turns back when $P_{\text{safe}}$ falls below 95\%, that is, when the margin is less than 1.645 times its uncertainty. So the safety buffer is small when the filter is confident and grows automatically when it is not. If the uncertainty is honest, no more than 5\% of missions should land below the reserve, which the Monte Carlo study tests directly.
 
@@ -194,7 +194,7 @@ The drone turns back when $P_{\text{safe}}$ falls below 95\%, that is, when the 
   \item \textbf{EKF-mean:} the EKF margin $m_k$ falls below zero, using the estimate but ignoring its uncertainty;
   \item \textbf{EKF-risk:} $P_{\text{safe},k}$ falls below 95\%.
 \end{itemize}
-EKF-mean and EKF-risk differ only in whether the uncertainty is used. (Figure legends label the four policies A--D in this order.) Rules are checked while cruising or hovering; once one fires, the drone flies straight home. \label{sec:m_scoring}Each mission is scored on whether the battery \textbf{died}, whether the \textbf{reserve was broken} (died or landed below 10\%), the \textbf{unused battery} above the reserve at landing, and the number of \textbf{deliveries}.
+EKF-mean and EKF-risk differ only in whether the uncertainty is used. (Figure~\ref{fig:r_demo_decision} labels them A--D in this order.) Rules are checked while cruising or hovering; once one fires, the drone flies straight home. \label{sec:m_scoring}Each mission is scored on whether the battery \textbf{died}, whether the \textbf{reserve was broken} (died or landed below 10\%), the \textbf{unused battery} above the reserve at landing, and the number of \textbf{deliveries}.
 
 %--------------------------------------------------------------------------------------------------
 \section{Experiments}\label{sec:m_experiments}
@@ -212,10 +212,10 @@ EKF-mean and EKF-risk differ only in whether the uncertainty is used. (Figure le
     \# & Experiment & Set-up \\
     \midrule
     E1 & Normal flight & True start 95\%, read from the resting voltage \\
-    E2 & Wrong start & True start 85\%, but the estimators assume 100\% ($\pm 20\%$) \\
+    E2 & Wrong start & True start 85\%; estimators assume 100\% ($\sigma = 20\%$) \\
     E3 & Sensor bias & Bias 0.8\,A; stages B and C \\
     E4 & Aged battery & True capacity 4.25\,Ah (85\%), start 100\%; stages B and C \\
-    E5 & Tuning & Stage B with $Q$ or $R_v$ multiplied by 0.01 or 100 \\
+    E5 & Tuning & Stage B with all of $Q$ or $R_v$ multiplied by 0.01 or 100 \\
     E6 & Strong model difference & Slow pair $R_2 = 4$\,m$\Omega$; stages A, B, C \\
     E7 & Flat part of the curve & SoC uncertainty against true SoC; stages B and C \\
     E8 & Stage comparison & 20 seeds $\times$ E1, E2, E3, E4, E6 $\times$ stages A, B, C \\
@@ -223,4 +223,4 @@ EKF-mean and EKF-risk differ only in whether the uncertainty is used. (Figure le
   \end{tabular}
 \end{table}
 
-\textbf{Testing the return-home rules.} All four policies fly the same 500 random long-route missions (the \emph{Monte Carlo} study), each drawing a starting SoC of 60--100\%, a sensor bias of $\pm 1$\,A, wind of $\pm 20\%$ on the cruise current, a capacity of 80--100\% of 5\,Ah, and real-battery $R_0$, $R_1$, $C_1$, $R_2$ within $\pm 15\%$. EKF-risk's threshold (80--99.9\%) and Voltage's threshold (3.40--3.60\,V) are then varied over 200 of these missions. A demonstration mission (aged battery, sensor 0.5\,A low, 10\% headwind) shows how each policy decides.
+\textbf{Testing the return-home rules.} All four policies fly the same 500 random long-route missions (the \emph{Monte Carlo} study), each with a random start SoC (60--100\%), sensor bias ($\pm 1$\,A), wind ($\pm 20\%$), capacity (80--100\%) and real-battery $R$--$C$ values ($\pm 15\%$). The EKF-risk and Voltage thresholds are then varied over 200 of them, and a demonstration mission (aged battery, sensor 0.5\,A low, 10\% headwind) shows how each policy decides.

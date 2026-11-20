@@ -144,7 +144,7 @@ This is a study aid, not part of the report. It starts with a one-page summary o
 - `coulomb_count.m` is the one-line baseline. `run_flight.m` flies one full mission with truth, sensors, EKF and baseline together. `main_day3_ekf.m` runs E1 and E2 with stages A and B.
 - `run_flight.m` now has options: `n_rest` (how many resting readings to average) and `q_scale`/`r_scale` (to turn the Q and R knobs in E5).
 - `flight_metrics.m` turns one flight into numbers: error (RMSE, final, max), how often the truth was inside the band, NIS, and NEES on SoC (should be about 1).
-- `main_day4_experiments.m` runs E3–E8. E8 alone is 300 flights (5 scenarios × 20 seeds × 3 stages). `ocv_lookup.m` now builds its curve once and reuses it, which is much faster but gives exactly the same numbers.
+- `run3_stress_tests_E3_E8.m` runs E3–E8. E8 alone is 300 flights (5 scenarios × 20 seeds × 3 stages). `ocv_lookup.m` now builds its curve once and reuses it, which is much faster but gives exactly the same numbers.
 - `trip_soc.m` (cost to get home), `p_safe_return.m` (margin → probability with `erfc`) and `rth_policy.m` (the four rules, each a few lines). Policy A counts seconds below the threshold, so one noisy dip cannot send the drone home.
 - `run_mission_rth.m` flies one long mission: 10 resting readings for the start, stage C EKF and charge counting always running, the cruise current learned while cruising, and the decision every second. `draw_conditions.m` draws one mission's random conditions. `main_day5_rth.m` runs the demo mission, the 500-mission Monte Carlo and the threshold sweep.
 

@@ -1,7 +1,7 @@
-%% Day 2 - Test the simulator (no filter yet)
+%% Run 1 - Simulator check (no filter yet)
 % Flies the 'short' delivery mission on the "real" battery and records
 % what the sensors would report. Checks that everything looks realistic
-% before we add the EKF on Day 3.
+% before the EKF is added (run 2).
 %
 % Run from the drone_battery_ekf folder.
 
@@ -112,12 +112,12 @@ xlabel('Time (min)'); ylabel('True SoC (%)');
 title('True state of charge (the filter will have to estimate this)');
 
 %% Save figures
-out = fullfile(root, 'results', 'day2');
+out = fullfile(root, 'results', 'run1_simulator_check');
 if ~exist(out, 'dir'), mkdir(out); end
 save_fig(figA, fullfile(out, 'fig_ocv_curve.png'));
 save_fig(figB, fullfile(out, 'fig_mission.png'));
 save_fig(figC, fullfile(out, 'fig_voltage_soc.png'));
-save(fullfile(out, 'day2_log.mat'), 'rec', 'p', 'm');
+save(fullfile(out, 'simulator_log.mat'), 'rec', 'p', 'm');
 fprintf('\nFigures saved in %s\n', out);
 
 %% ---------------- Local functions ----------------

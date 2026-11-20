@@ -8,7 +8,7 @@
 
 \label{sec:bg_soc}\textbf{Capacity and state of charge.} The \emph{capacity} $C_n$ is the total charge a full battery can deliver, in ampere-hours (Ah); a 5\,Ah battery can supply 5\,A for one hour. The capacity falls as a battery ages. The \emph{state of charge} (SoC) is the fraction of the capacity that is left, from 1 (full) to 0 (empty). Equations use fractions; the text gives the SoC and its errors in percentage points of SoC.
 
-\label{sec:bg_ocv}\textbf{Resting voltage.} When no current flows, the battery voltage depends only on the SoC. This is the \emph{open-circuit voltage} (OCV), shown in Figure~\ref{fig:bg_ocv_tangent}. Two features matter. First, it is a curve, which is why we need the \emph{Extended} Kalman Filter. Second, its steepness changes: near empty the voltage changes by about 25\,mV per 1\% of SoC, but between 20\% and 50\% by only 5\,mV. Where the curve is flat, a small voltage error looks like a large SoC error, so the voltage is less useful there.
+\label{sec:bg_ocv}\textbf{Resting voltage.} When no current flows, the battery voltage depends only on the SoC. This is the \emph{open-circuit voltage} (OCV), shown in Figure~\ref{fig:bg_ocv_tangent}. The curve is non-linear, which is why an \emph{Extended} Kalman Filter is used, and its slope varies: near empty the voltage changes by about 25\,mV per 1\% of SoC, but between 20\% and 50\% by only 5\,mV. Where the curve is flat, a small voltage error looks like a large SoC error, so the voltage is less useful there.
 
 \begin{figure}[htbp]
   \centering
@@ -55,7 +55,7 @@ For example, a sensor reading 0.5\,A too high makes the SoC of a 5\,Ah battery 2
 \section{Using the EKF to estimate the SoC}\label{sec:bg_kf}
 %--------------------------------------------------------------------------------------------------
 
-\label{sec:bg_kf_idea}\label{sec:bg_ss}\label{sec:bg_qr}The idea is simple: \textbf{charge counting predicts the SoC, and the voltage sensor corrects that prediction.} The general model is $x_k = f(x_{k-1}, u_k) + w_k$ and $z_k = h(x_k, u_k) + v_k$, where $w_k$ and $v_k$ are random errors with covariances $Q$ and $R_v$.\label{eq:bg_process} Table~\ref{tab:bg_mapping} lists what each part stands for here.
+\label{sec:bg_kf_idea}\label{sec:bg_ss}\label{sec:bg_qr}In this application, charge counting provides the prediction of the SoC and the measured voltage provides the correction. The general model is $x_k = f(x_{k-1}, u_k) + w_k$ and $z_k = h(x_k, u_k) + v_k$, where $w_k$ and $v_k$ are random errors with covariances $Q$ and $R_v$.\label{eq:bg_process} Table~\ref{tab:bg_mapping} lists what each part stands for here.
 
 \begin{table}[htbp]
   \centering

@@ -1,4 +1,4 @@
-%% Day 5 - The return-to-home decision: four policies compared
+%% Run 4 - The return-to-home decision: four policies compared
 % The drone flies the 'long' route (6 drop-offs, too far for one battery)
 % and must decide when to turn back. Four policies decide:
 %   A  voltage threshold (what many simple drones do)
@@ -32,7 +32,7 @@ rp.V_thr     = 3.5;     % policy A: turn back when cell voltage < 3.5 V ...
 rp.V_hold    = 5;       %   ... for 5 seconds in a row
 
 policies = {'A', 'B', 'C', 'D'};
-pnames   = {'A: voltage threshold', 'B: charge counting', 'C: EKF estimate only', 'D: EKF risk-aware'};
+pnames   = {'Voltage', 'Counting', 'EKF-mean', 'EKF-risk'};   % names used in the report
 pcol     = [0.95 0.6 0.1; 0.85 0.2 0.2; 0 0.3 0.9; 0.75 0 0.75];
 
 %% Part 1 - one demo mission: aged battery, sensor reads 0.5 A low, headwind
@@ -55,7 +55,7 @@ plot(tm, 100*d.ps, 'm', 'LineWidth', 1.4);
 yline(100*rp.p_thr, 'k--', '95% threshold', 'HandleVisibility', 'off');
 for j = 1:4
     if ~isnan(demo{j}.t_rth)
-        xline(demo{j}.t_rth/60, '-', policies{j}, 'Color', pcol(j,:), 'LineWidth', 1.2, 'HandleVisibility', 'off');
+        xline(demo{j}.t_rth/60, '-', pnames{j}, 'Color', pcol(j,:), 'LineWidth', 1.2, 'HandleVisibility', 'off');
     end
 end
 ylim([0 105]); ylabel('P(safe return) (%)');
@@ -143,7 +143,7 @@ ttl  = {'Battery died in the air (%)', 'Landed below the 10% reserve, or died (%
 for q = 1:4
     subplot(2,2,q);
     hb = bar(vals{q}, 'FaceColor', 'flat');  hb.CData = pcol;  grid on;
-    set(gca, 'XTickLabel', policies);
+    set(gca, 'XTickLabel', pnames);
     lo = min(0, min(vals{q}));  hi = max(vals{q});
     ylim([1.25*lo - 0.5*(lo < 0), 1.2*hi + 0.5]);       % headroom so value labels do not hit the title
     title(ttl{q});
@@ -163,12 +163,12 @@ SB = summarise(died(1:nS,2), land(1:nS,2), drops(1:nS,2), rp.reserve);
 SC = summarise(died(1:nS,3), land(1:nS,3), drops(1:nS,3), rp.reserve);
 
 fprintf('\n==== Part 3: threshold sweep (%d missions) ====\n', nS);
-fprintf('Policy D (risk-aware):\n');
+fprintf('EKF-risk (policy D):\n');
 for k = 1:numel(D_thr)
     fprintf('  P(safe) < %5.1f%%: died %4.1f%%, reserve broken %4.1f%% (promised <= %4.1f%%), unused %4.1f%%, deliveries %.2f\n', ...
             100*D_thr(k), 100*SD.died(k), 100*SD.breach(k), 100*(1-D_thr(k)), 100*SD.unused(k), SD.drops(k));
 end
-fprintf('Policy A (voltage):\n');
+fprintf('Voltage (policy A):\n');
 for k = 1:numel(A_thr)
     fprintf('  V < %.2f V: died %4.1f%%, reserve broken %4.1f%%, unused %4.1f%%, deliveries %.2f\n', ...
             A_thr(k), 100*SA.died(k), 100*SA.breach(k), 100*SA.unused(k), SA.drops(k));
@@ -184,11 +184,11 @@ for k = 1:numel(A_thr), text(100*SA.unused(k)+0.4, 100*SA.breach(k)+1.5, sprintf
 for k = 1:numel(D_thr), text(100*SD.unused(k)+0.4, 100*SD.breach(k)+1.5, sprintf('%g%%', 100*D_thr(k)), 'Color', pcol(4,:)); end
 xlabel('Unused battery at landing (% SoC)  \rightarrow more wasted range');
 ylabel('Missions that broke the reserve or died (%)  \rightarrow less safe');
-legend('A: voltage threshold', 'B: charge counting', 'C: EKF estimate only', 'D: EKF risk-aware', 'Location', 'northeast');
+legend('Voltage (threshold sweep)', 'Counting', 'EKF-mean', 'EKF-risk (threshold sweep)', 'Location', 'northeast');
 title('Safety vs wasted battery: bottom-left is best');
 
 %% Save
-out = fullfile(root, 'results', 'day5');
+out = fullfile(root, 'results', 'run4_return_home');
 if ~exist(out, 'dir'), mkdir(out); end
 save_fig(fig1, fullfile(out, 'fig_demo_decision.png'));
 save_fig(fig2, fullfile(out, 'fig_demo_map.png'));
@@ -202,7 +202,7 @@ TS = table([repmat({'D'}, numel(D_thr), 1); repmat({'A'}, numel(A_thr), 1)], [D_
            'VariableNames', {'policy', 'threshold', 'died_pct', 'reserve_broken_pct', 'unused_pct', 'deliveries'});
 writetable(TS, fullfile(out, 'threshold_sweep.csv'));
 for j = 1:4, demo{j} = rmfield(demo{j}, 'rec'); end   % keep the .mat small
-save(fullfile(out, 'day5_results.mat'), 'died', 'land', 'drops', 'acc', 'cond', 'S', 'SD', 'SA', 'demo', 'rp');
+save(fullfile(out, 'return_home_results.mat'), 'died', 'land', 'drops', 'acc', 'cond', 'S', 'SD', 'SA', 'demo', 'rp');
 fprintf('\nFigures and CSV files saved in %s\n', out);
 
 %% ---------------- Local functions ----------------

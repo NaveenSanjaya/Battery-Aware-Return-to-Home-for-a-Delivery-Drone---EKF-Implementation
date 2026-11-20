@@ -4,42 +4,42 @@
 
 \section{Why the filter works}\label{sec:d_why}
 
-Charge counting has no way to notice its own mistakes. A wrong start, a sensor bias or an aged battery stays wrong for the whole flight. The EKF gets an independent check from the voltage every second, and the Kalman gain decides how much to trust it (Section~\ref{sec:bg_gain}).
+Charge counting cannot notice its own mistakes, so a wrong start, a sensor bias or an aged battery stays wrong all flight. The EKF gets an independent check from the voltage every second, weighted by the Kalman gain (Section~\ref{sec:bg_gain}).
 
-That check is weakest where the OCV curve is flat, so there the filter corrects less and its uncertainty grows (E7). In other words, the filter knows when it knows less, which is exactly what the return-home rule needs.
+That check is weakest where the OCV curve is flat, so there stage~C corrects less and its uncertainty grows (E7). The filter's uncertainty therefore reflects how informative the voltage is, which the return-home rule relies on.
 
 \section{What one flight can reveal}\label{sec:d_observability}
 
-Not every battery value can be learned equally well. The resistance shows up whenever the current changes, so the end of take-off was enough to learn it. The bias and the capacity cannot be separated within one flight (E3, E4), so stage~C's individual estimates were sometimes wrong, even in sign.
+The resistance shows up whenever the current changes, so the end of take-off was enough to learn it. The bias and the capacity cannot be separated within one flight (E3, E4), so stage~C's individual estimates were sometimes wrong, even in sign.
 
-This does not harm the SoC. The voltage does reveal how fast the SoC is falling, the drain rate~\eqref{eq:m_rate}, and that is all the SoC estimate and the trip cost need.
+The SoC estimate is not affected, because the voltage does reveal how fast the SoC is falling, the drain rate~\eqref{eq:m_rate}, and that is all the SoC estimate and the trip cost need.
 
 \section{Model errors matter most}\label{sec:d_mismatch}
 
 The largest errors came from differences between the model and the real battery, not from sensor noise. A 10\% resistance error always pushes the estimate the same way, so telling the filter its sensor is noisier does not remove it (Section~\ref{sec:m_ekf_investigation}).
 
-Worse, the filter cannot see this problem by itself. Stage~A's innovations looked normal, while its true error was about 5 to 20 times its own $\sigma$ (NEES 30--400, Table~\ref{tab:r_e8}). Only a simulation, where the true SoC is known, reveals this. Learning the resistance removed most of the error, but a large enough model error (E6) defeats every version of the filter, and plain charge counting then does better.
+The filter cannot detect this error from its own signals. Stage~A's innovations looked normal, while its true error was about 5 to 20 times its own $\sigma$ (NEES 30--400, Table~\ref{tab:r_e8}). A constant voltage error is absorbed into a constant SoC offset: the filter shifts its SoC until the predicted voltage matches, so the innovations stay small while the SoC is wrong. Only a simulation, where the true SoC is known, reveals this. Learning the resistance removed most of the error, but a large enough model error (E6) defeats every version of the filter, and charge counting then performs better.
 
 A more advanced filter, such as an unscented Kalman filter or a particle filter, would not fix this. With a perfect model the EKF's error was only 0.12\%, so the tangent-line approximation is not the limit; a different filter would inherit the same model error.
 
-Tuning mainly sets how cautious the filter is, not how accurate it is (E5). The chosen settings are slightly cautious on purpose, because the return-home rule turns the filter's uncertainty directly into a safety margin.
+Tuning mainly sets how cautious the filter is (E5); it is slightly cautious on purpose, because the return-home rule turns its uncertainty into a safety margin.
 
 \section{The most accurate filter is not the safest}\label{sec:d_choice}\label{sec:d_value}
 
-Stage~B was the most accurate filter on a healthy battery. On an aged battery, however, it was confidently wrong in the dangerous direction: it believed there was more charge than there was (E4, E8). For a safety decision, an honest uncertainty matters more than the last fraction of a percent of accuracy, so stage~C drives the return-home rule.
+Stage~B was the most accurate filter on a healthy battery. On an aged battery, however, it was confidently wrong in the dangerous direction: it believed there was more charge than there was (E4, E8). For a safety decision, a consistent uncertainty is more important than a small gain in accuracy, so stage~C is used for the return-home rule.
 
-EKF-mean and EKF-risk show the value of using the uncertainty. They use the same filter, and differ only in whether the uncertainty is used. EKF-mean aims exactly at the reserve, so it lands below it about as often as above it (38\%). EKF-risk keeps a buffer that grows when the filter is unsure, and broke the reserve in only 2.8\% of missions.
+EKF-mean and EKF-risk use the same filter and differ only in whether the uncertainty is used. EKF-mean aims exactly at the reserve, so it often lands below it (38\%; somewhat less than half, because the filter itself is cautious). EKF-risk keeps a buffer that grows when the filter is unsure, and broke the reserve in only 2.8\% of missions.
 
-EKF-risk never broke its promise at any threshold tested (Figure~\ref{fig:r_tradeoff}); it was about twice as safe as promised, so its probabilities are on the safe side. This tests the whole chain at once: the model, the filter's uncertainty, the trip cost and the probability. The price is modest: about 6\% of the battery left unused, and slightly fewer deliveries than EKF-mean. An operator can move the threshold to choose a different balance.
+EKF-risk never broke its promise at any threshold tested (Figure~\ref{fig:r_tradeoff}); it was about twice as safe as promised, so its probabilities are on the safe side. Both the cautious filter and the 10\% trip allowance contribute to this. This result checks the model, the filter's uncertainty, the trip cost and the probability calculation together. The cost is about 6\% unused battery and slightly fewer deliveries than EKF-mean; the threshold sets this balance.
 
-The two simple methods fail for clear reasons. Charge counting becomes too optimistic with an aged battery or a sensor that reads low. A voltage threshold ignores how far the drone is from home and is fooled by the voltage drop under load.
+Charge counting becomes too optimistic with an aged battery or a sensor that reads low. A voltage threshold ignores how far the drone is from home and is fooled by the voltage drop under load.
 
 \section{Limitations and future work}\label{sec:d_limitations}\label{sec:d_future}
 
 \begin{itemize}
-  \item \textbf{Simulation only.} Real flight logs do not include the true SoC, but they could be used to test the filter's voltage predictions.
-  \item \textbf{Typical battery data.} The OCV curve is a typical shape, not measured on a real cell, and temperature effects are not modelled.
-  \item \textbf{Simple return-home model.} The rule assumes normally distributed errors, a straight flight home and a constant cruise current.
-  \item \textbf{Bias and capacity.} Measuring the sensor bias before take-off, when the true current is zero, and estimating the capacity between flights would separate the two.
-  \item \textbf{Model error.} A filter model with two $R$--$C$ pairs, or noise settings that adapt during flight, could reduce the errors seen in E6.
+  \item \textbf{Simulation only.} Real logs lack the true SoC but could test the voltage model.
+  \item \textbf{Typical battery data.} Typical OCV curve, not measured; no temperature effects.
+  \item \textbf{Simple return model.} Normal errors, straight path, constant cruise current.
+  \item \textbf{Bias and capacity.} Calibrate the bias at rest; estimate capacity between flights.
+  \item \textbf{Model error.} A two-$R$--$C$ filter or adaptive noise could help in E6.
 \end{itemize}

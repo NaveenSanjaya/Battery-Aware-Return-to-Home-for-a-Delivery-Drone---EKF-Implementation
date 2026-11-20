@@ -4,7 +4,7 @@
 
 \section{The problem}\label{sec:intro_problem}
 
-A delivery drone must decide during flight when to stop delivering and fly back home. Too late, and the battery can run out before it gets home; too early, and it wastes charge that could have made more deliveries.
+A delivery drone must decide during flight when to stop delivering and fly back home. Turning back too late can drain the battery before the drone reaches home, while turning back too early wastes charge that could have been used for deliveries.
 
 To decide, the drone needs to know how much charge is left, the \emph{state of charge} (SoC), given as a percentage from 100\% (full) to 0\% (empty). The SoC cannot be measured directly, and both of the drone's sensors have flaws:
 \begin{itemize}
@@ -14,6 +14,6 @@ To decide, the drone needs to know how much charge is left, the \emph{state of c
 
 \section{Approach and objectives}\label{sec:intro_why_ekf}\label{sec:intro_objectives}\label{sec:intro_contributions}
 
-Neither sensor is good enough on its own, so we combine them with an \emph{Extended Kalman Filter} (EKF). The filter uses the current to predict how the SoC changes, then uses the voltage to correct that prediction. It also reports how confident it is, for example ``45\% $\pm$ 2\%'', so the drone can keep a small safety margin when the filter is sure and a larger one when it is not. The \emph{extended} version is needed because voltage and SoC are linked by a curve, not a straight line (Section~\ref{sec:bg_ocv}).
+Neither sensor is good enough on its own, so we combine them with an \emph{Extended Kalman Filter} (EKF). The filter uses the current to predict how the SoC changes, then uses the voltage to correct that prediction. It also reports how confident it is, for example ``45\% $\pm$ 2\%'' (one standard deviation), so the drone can keep a small safety margin when the filter is sure and a larger one when it is not. The \emph{extended} version is needed because voltage and SoC are linked by a curve, not a straight line (Section~\ref{sec:bg_ocv}).
 
 All work is done in a MATLAB simulation that knows the true SoC, so every estimate and decision can be scored. The objectives are to (1) build a drone and battery simulator with realistic sensor errors, (2) design an EKF that estimates the SoC and its uncertainty (Section~\ref{sec:m_ekf}), (3) design a return-home rule that uses this uncertainty (Section~\ref{sec:m_rth}), and (4) compare both with two simple methods over 500 random missions (Chapter~\ref{ch:results}).

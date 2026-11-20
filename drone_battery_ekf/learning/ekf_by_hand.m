@@ -1,8 +1,8 @@
-%% Day 1 - The EKF by hand (SoC only)
+%% Learning exercise - The EKF by hand (SoC only)
 % Goal: understand predict, update and the Kalman gain K with real numbers.
 % Run one section at a time (Ctrl+Enter). Change numbers and re-run.
 %
-% Simplifications for Day 1 (all removed later):
+% Simplifications for this exercise (all removed later):
 %   - one state only: SoC
 %   - no R1-C1 polarisation, no bias state, known capacity
 
@@ -81,7 +81,7 @@ end
 % --- Plot ---
 t = (0:N-1) / 60;                         % minutes
 sig3 = 3*sqrt(P_ekf);
-figure('Name', 'Day 1: EKF vs charge counting', 'Color', 'w');
+figure('Name', 'EKF by hand: EKF vs charge counting', 'Color', 'w');
 
 subplot(3,1,1); hold on; grid on;
 fill([t fliplr(t)], 100*[soc_ekf+sig3 fliplr(soc_ekf-sig3)], [0.8 0.88 1], ...

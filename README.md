@@ -51,13 +51,13 @@ The simulator's "real" battery is deliberately different from the filter's model
 
 ```
 drone_battery_ekf/
-├── main_day2_simulator.m      Simulator check: one delivery flight, no filter
-├── main_day3_ekf.m            E1 normal flight, E2 wrong start (stages A and B)
-├── main_day4_experiments.m    E3 bias, E4 aged battery, E5 tuning, E6 stress test,
+├── run1_simulator_check.m     Simulator check: one delivery flight, no filter
+├── run2_filter_E1_E2.m        E1 normal flight, E2 wrong start (stages A and B)
+├── run3_stress_tests_E3_E8.m  E3 bias, E4 aged battery, E5 tuning, E6 stress test,
 │                              E7 flat OCV region, E8 20-flight comparison
-├── main_day5_rth.m            Return-to-home: demo, 500-mission Monte Carlo, threshold sweep
+├── run4_return_home.m         Return-to-home: demo, 500-mission Monte Carlo, threshold sweep
 ├── learning/
-│   └── day1_ekf_by_hand.m     One EKF step worked by hand (learning exercise)
+│   └── ekf_by_hand.m          One EKF step worked by hand (learning exercise)
 ├── config/
 │   ├── battery_params.m       Truth, filter and sensor parameters
 │   ├── ocv_lookup.m           OCV curve and its slope
@@ -94,19 +94,21 @@ docs/project_guide.md          The original project plan and theory primer
 
 ## How to run
 
-Open MATLAB in the `drone_battery_ekf` folder and run the scripts in order. Each one adds the folders it needs to the path and writes its outputs to `results/<day>/`.
+Open MATLAB in the `drone_battery_ekf` folder and run the scripts in order. Each one adds the folders it needs to the path and writes its outputs to `results/<script name>/`.
 
 | Script | What it produces | Run time |
 |---|---|---|
-| `learning/day1_ekf_by_hand.m` | One EKF step printed number by number, and a 10-minute discharge plot | seconds |
-| `main_day2_simulator.m` | Simulator check: mission map, current, voltage sag, true SoC | seconds |
-| `main_day3_ekf.m` | E1/E2 tables and figures (stage A vs B vs charge counting) | seconds |
-| `main_day4_experiments.m` | E3–E8 tables, 6 figures, `e8_summary.csv` | about 30 s |
-| `main_day5_rth.m` | Demo, Monte Carlo and threshold sweep: 4 figures, 2 CSV files | about 4–5 min |
+| `learning/ekf_by_hand.m` | One EKF step printed number by number, and a 10-minute discharge plot | seconds |
+| `run1_simulator_check.m` | Simulator check: mission map, current, voltage sag, true SoC | seconds |
+| `run2_filter_E1_E2.m` | E1/E2 tables and figures (stage A vs B vs charge counting) | seconds |
+| `run3_stress_tests_E3_E8.m` | E3–E8 tables, 6 figures, `e8_summary.csv` | about 30 s |
+| `run4_return_home.m` | Demo, Monte Carlo and threshold sweep: 4 figures, 2 CSV files | about 4–5 min |
 
-For a quick check of `main_day5_rth.m`, set `N_MC = 50` and `N_SWEEP = 30` at the top of the script.
+For a quick check of `run4_return_home.m`, set `N_MC = 50` and `N_SWEEP = 30` at the top of the script.
 
 All random numbers are seeded, so every run reproduces the same results.
+
+The report reads its result figures straight from `drone_battery_ekf/results/`. Two of them (E7 and the safety-versus-wasted-battery plot) are re-drawn from the saved MATLAB results by `Report/replot_figures.py` (Python: numpy, scipy, matplotlib) to fix two labels without re-running MATLAB; the numbers are unchanged.
 
 ## Limitations
 
