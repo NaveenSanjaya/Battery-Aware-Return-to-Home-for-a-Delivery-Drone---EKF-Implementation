@@ -4,10 +4,10 @@
 
 \label{sec:c_objectives}\label{sec:c_next}This project built a return-home decision for a delivery drone around an Extended Kalman Filter that estimates the battery's SoC and how uncertain it is. All four objectives were met:
 \begin{itemize}
-  \item \textbf{Simulator.} The simulated battery reproduced the voltage drop under load that misleads simple methods, and it differed from the filter's model, as a real battery would.
-  \item \textbf{Filter.} Learning the internal resistance during flight removed the main source of SoC error. The full filter (stage~C) had a 1.31\% SoC error over 500 missions, against 3.35\% for charge counting, and was honest in every normal scenario, including an aged battery.
-  \item \textbf{Return-home rule.} In 500 random missions, the rule had no battery failures and landed below the 10\% reserve in only 2.8\% of missions, within its 5\% promise. It never broke its promise at any threshold tested and was about twice as safe as promised, thanks to the cautious filter and the trip allowance.
+  \item \textbf{Simulator.} The simulated battery reproduced the voltage drop under load and differed from the filter's model, as a real battery would.
+  \item \textbf{Filter.} Learning the internal resistance during flight removed the main source of SoC error. The full filter (stage~C) had a 1.31\% SoC error over 500 missions, against 3.35\% for charge counting, and was honest in every normal scenario.
+  \item \textbf{Return-home rule.} In 500 random missions, the rule had no battery failures and landed below the 10\% reserve in only 2.8\% of missions, within its 5\% promise, which held at every threshold tested.
   \item \textbf{Comparison.} The same filter without its uncertainty broke the reserve in 38\% of missions, charge counting let 30\% of batteries die, and no voltage threshold was both safe and efficient.
 \end{itemize}
 
-For a safety decision, the filter's uncertainty proved as important as its estimate, provided that the uncertainty is consistent. The most useful next steps are measuring the sensor bias before take-off, estimating the capacity between flights, and testing on real flight data.
+For a safety decision, the filter's uncertainty proved as important as its estimate. Useful next steps are measuring the sensor bias before take-off, estimating the capacity between flights, and testing on real flight data.
