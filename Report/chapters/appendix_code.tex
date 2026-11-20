@@ -7,18 +7,8 @@
 % visible TODO instead of stopping the compile.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-This appendix lists the core files of the method: the true battery and sensors, the EKF, and the return-to-home decision. The remaining files (parameters, OCV lookup, drone motion, performance measures, experiment and plotting scripts) are in the project's code folder \texttt{drone\_battery\_ekf/}, organised as in Table~\ref{tab:i_files}.
+This appendix lists the filter set-up and the return-to-home decision, which complement the listings in Chapter~\ref{ch:impl}. The full code, including the simulator, the experiments and the plotting scripts, is in the project's code folder \texttt{drone\_battery\_ekf/}, organised as described in Section~\ref{sec:i_structure}.
 
-\section{Simulated battery and sensors}
-\codefile{sim/battery_true_step.m}{\texttt{sim/battery\_true\_step.m}}
-\codefile{sim/read_sensors.m}{\texttt{sim/read\_sensors.m}}
-
-\section{Extended Kalman Filter}
 \codefile{estimators/ekf_init.m}{\texttt{estimators/ekf\_init.m}}
-\codefile{estimators/ekf_step.m}{\texttt{estimators/ekf\_step.m}}
-
-\section{Return-to-home decision}
 \codefile{decision/trip_soc.m}{\texttt{decision/trip\_soc.m}}
-\codefile{decision/p_safe_return.m}{\texttt{decision/p\_safe\_return.m}}
 \codefile{decision/rth_policy.m}{\texttt{decision/rth\_policy.m}}
-\codefile{sim/run_mission_rth.m}{\texttt{sim/run\_mission\_rth.m}}

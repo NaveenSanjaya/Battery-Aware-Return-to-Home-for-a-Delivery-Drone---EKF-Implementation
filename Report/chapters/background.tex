@@ -12,7 +12,7 @@
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.75\textwidth]{fig2_ocv_curve.png}
+  \includegraphics[width=0.55\textwidth]{fig2_ocv_curve.png}
   \caption{OCV curve of one cell. It is steep near empty and flat between about 20\% and 50\% SoC. The dashed tangent at 40\% SoC is what the EKF uses: close to the curve nearby, wrong far away.}
   \label{fig:bg_ocv_tangent}
 \end{figure}
@@ -36,7 +36,7 @@ Only $V$ and $I$ are measured; the SoC and $V_1$ must be estimated.
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.6\textwidth]{fig3_equivalent_circuit.png}
+  \includegraphics[width=0.45\textwidth]{fig3_equivalent_circuit.png}
   \caption{One-RC equivalent circuit used by the EKF. The simulated ``true'' battery adds a second, slower RC pair (Section~\ref{sec:m_truth_vs_filter}).}
   \label{fig:bg_circuit}
 \end{figure}
@@ -83,15 +83,7 @@ Here ``$-$'' means before the measurement, $\tilde{y}_k$ is the \emph{innovation
 which replace $F$ and $H$ in \eqref{eq:bg_kf_ppred}--\eqref{eq:bg_kf_pupd}, while the state and expected measurement use the full nonlinear $f$ and $h$. For the battery the key entry of $H_k$ is the OCV slope at the current SoC estimate, the tangent in Figure~\ref{fig:bg_ocv_tangent}. This works well when the curve is smooth and the uncertainty small, as here~\cite{simon2006optimal,welch2006intro}.
 
 %--------------------------------------------------------------------------------------------------
-\section{A worked example}\label{sec:bg_example}
+\section{Related work}\label{sec:bg_related}\label{sec:bg_example}
 %--------------------------------------------------------------------------------------------------
 
-One EKF step with SoC as the only state (\texttt{learning/day1\_ekf\_by\_hand.m}) shows the gain at work. The filter starts at $80\% \pm 5\%$. Drawing 20\,A for 10\,s predicts 78.89\%. The model then expects 3.832\,V, but the sensor reads 3.80\,V, a surprise of $-32$\,mV. With an OCV slope of 7\,mV per 1\% SoC and a 10\,mV sensor, the gain is $K = 1.32$\,V$^{-1}$, and the estimate moves to $74.6\% \pm 1.4\%$: one voltage reading cut the uncertainty from 5\% to 1.4\%. With a noisy 50\,mV sensor, or a confident $\pm 1\%$ start, the gain falls to about 0.47 and the estimate moves much less.
-
-%--------------------------------------------------------------------------------------------------
-\section{Related work}\label{sec:bg_related}
-%--------------------------------------------------------------------------------------------------
-
-Plett's three-part paper~\cite{plett2004part1,plett2004part2,plett2004part3} is the classic reference for EKF battery estimation, including adding unknown parameters such as resistance or capacity to the state, as done here; his textbook~\cite{plett2015bms} covers equivalent-circuit models in depth. MathWorks provides a MATLAB EKF battery example~\cite{mathworks_ekf_battery}. Simon~\cite{simon2006optimal} covers the KF, EKF, unscented Kalman filter (UKF) and particle filter, and Welch and Bishop~\cite{welch2006intro} give a short introduction.
-
-For drones, an EKF has been used for UAV battery SoC estimation~\cite{hal_uav_ekf}, and prediction of remaining flying time, the quantity an RTH decision depends on, has been verified for electric unmanned vehicles~\cite{ijphm_flight_time}. Dibbern et al.~\cite{purdue_jate_comparison} compared an EKF, a UKF and charge counting on delivery and inspection missions, and found the UKF more accurate and parameter identification more important than the load profile. Public flight and cell datasets~\cite{cmu_dji_dataset,cmu_evtol_dataset,cmu_evtol_paper,mcmaster_lg_hg2} are available for future validation; this project uses simulation so that the true SoC is always known.
+Plett's three-part paper~\cite{plett2004part1,plett2004part2,plett2004part3} and textbook~\cite{plett2015bms} are the classic references for EKF battery estimation and equivalent-circuit models, including adding unknown parameters such as resistance or capacity to the state, as done here; MathWorks provides a MATLAB example~\cite{mathworks_ekf_battery}, and Simon~\cite{simon2006optimal} and Welch and Bishop~\cite{welch2006intro} cover the filters themselves. For drones, an EKF has been used for UAV battery SoC estimation~\cite{hal_uav_ekf}, remaining-flight-time prediction has been verified for electric unmanned vehicles~\cite{ijphm_flight_time}, and Dibbern et al.~\cite{purdue_jate_comparison} found a UKF more accurate than an EKF and charge counting on delivery missions, with parameter identification mattering more than the load profile. Public flight and cell datasets~\cite{cmu_dji_dataset,cmu_evtol_dataset,cmu_evtol_paper,mcmaster_lg_hg2} exist, but this project uses simulation so that the true SoC is always known.

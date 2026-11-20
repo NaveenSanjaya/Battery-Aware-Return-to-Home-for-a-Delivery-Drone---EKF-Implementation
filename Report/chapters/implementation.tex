@@ -1,38 +1,22 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Chapter 4: Implementation   (the \chapter command is in main.tex)
 % The two listings are read straight from the code files (firstline/lastline), so they always
-% match the code. The core files are in the appendix.
+% match the code.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %--------------------------------------------------------------------------------------------------
-\section{Tools and code structure}\label{sec:i_structure}
+\section{Tools and code structure}\label{sec:i_structure}\label{sec:i_run_flight}\label{sec:i_loop}\label{sec:i_day4}
 %--------------------------------------------------------------------------------------------------
 
-The project uses base MATLAB only, with a time step of 1\,s. Every run fixes the random seed, so it can be repeated exactly, and runs that are compared use the same seed and therefore the same sensor noise. The code is split into short files that each do one job (Table~\ref{tab:i_files}); the core files are listed in Appendix~\ref{app:code}.
+The project uses base MATLAB only, with a time step of 1\,s. Every run fixes the random seed, so it can be repeated exactly, and runs that are compared share the same sensor noise. The code in \texttt{drone\_battery\_ekf/} is split into short files that each do one job: \texttt{config/} holds the battery and sensor parameters and the OCV curve; \texttt{sim/} the true 2-RC battery, the sensors, the drone's flight phases, the routes and the performance measures; \texttt{estimators/} the EKF (stages A--C) and charge counting; and \texttt{decision/} the trip cost, the probability of a safe return and the four policies.
 
-\begin{table}[htbp]
-  \centering
-  \caption{Code organisation in \texttt{drone\_battery\_ekf/}.}
-  \label{tab:i_files}
-  \small
-  \begin{tabular}{@{}lp{0.68\textwidth}@{}}
-    \toprule
-    Folder & What it does \\
-    \midrule
-    \texttt{config/} & Battery and sensor parameters; OCV curve and its slope; SoC from resting voltage \\
-    \texttt{sim/} & True 2-RC battery, sensors, drone flight phases, routes, one complete flight, random Monte Carlo conditions, performance measures \\
-    \texttt{estimators/} & EKF set-up (stages A--C) and one predict--update step; charge counting \\
-    \texttt{decision/} & Trip cost, probability of a safe return, the four policies \\
-    main scripts & Simulator test, E1--E2, E3--E8, return-to-home study (demo, Monte Carlo, sweep) \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+Every second, a flight runs the same loop: the drone model gives the current demand, the true battery responds, the sensors add bias and noise, the EKF and charge counting update, and, in return-to-home missions, the policy decides whether to turn back. \texttt{run\_flight.m} flies experiments E1--E8 and \texttt{run\_mission\_rth.m} the return-to-home missions. Four main scripts reproduce every result: \texttt{main\_day2\_simulator.m} (simulator check), \texttt{main\_day3\_ekf.m} (E1--E2), \texttt{main\_day4\_experiments.m} (E3--E8, about 20\,s for the 300 flights of E8) and \texttt{main\_day5\_rth.m} (demonstration, 500-mission Monte Carlo in about 95\,s, and threshold sweep).
 
 %--------------------------------------------------------------------------------------------------
 \section{The EKF in code}\label{sec:i_ekf}
 %--------------------------------------------------------------------------------------------------
 
-Listing~\ref{lst:i_ekf_core} is the heart of \texttt{ekf\_step.m}. Lines 16--20 are the process model \eqref{eq:m_f_soc}--\eqref{eq:m_f_r0}, lines 22--30 the Jacobian $F$ and the noise $Q$ of \eqref{eq:m_F} and \eqref{eq:m_Q}, lines 33--39 the expected voltage \eqref{eq:m_h}, the innovation and $H$, and lines 42--46 the gain and the stable covariance update \eqref{eq:m_joseph}. Because there is one voltage measurement, $S$ is a single number and no matrix inverse is needed. All five states are always present; a stage freezes the states it does not learn by giving them zero uncertainty.
+Listing~\ref{lst:i_ekf_core} is the heart of \texttt{ekf\_step.m}. Lines 16--20 are the process model \eqref{eq:m_f_soc}--\eqref{eq:m_f_r0}, lines 22--30 the Jacobian $F$ and the noise $Q$ of \eqref{eq:m_F} and \eqref{eq:m_Q}, lines 33--39 the expected voltage \eqref{eq:m_h}, the innovation and $H$, and lines 42--46 the gain and the stable covariance update \eqref{eq:m_joseph}. With one voltage measurement, $S$ is a single number and no matrix inverse is needed. All five states are always present; a stage freezes the states it does not learn by giving them zero uncertainty.
 
 \lstinputlisting[firstline=15, lastline=46, firstnumber=15,
   caption={Predict and update in \texttt{estimators/ekf\_step.m}.}, label={lst:i_ekf_core}]
@@ -47,9 +31,3 @@ Listing~\ref{lst:i_psafe} turns the filter's estimate into the probability of a 
 \lstinputlisting[firstline=15, lastline=23, firstnumber=15,
   caption={Probability of a safe return in \texttt{decision/p\_safe\_return.m}.}, label={lst:i_psafe}]
   {\codedir/decision/p_safe_return.m}
-
-%--------------------------------------------------------------------------------------------------
-\section{Running the experiments}\label{sec:i_run_flight}\label{sec:i_loop}\label{sec:i_day4}
-%--------------------------------------------------------------------------------------------------
-
-Every second, a flight runs the same loop: the drone model gives the current demand, the true battery responds, the sensors add bias and noise, the EKF and charge counting update, and, in return-to-home missions, the policy decides whether to turn back. \texttt{run\_flight.m} flies the experiments E1--E8 and \texttt{run\_mission\_rth.m} the return-to-home missions; both record the truth and the estimates for scoring. Four main scripts reproduce every result: \texttt{main\_day2\_simulator.m} (simulator test), \texttt{main\_day3\_ekf.m} (E1--E2), \texttt{main\_day4\_experiments.m} (E3--E8, about 20\,s for the 300 flights of E8) and \texttt{main\_day5\_rth.m} (demonstration, 500-mission Monte Carlo in about 95\,s, and threshold sweep).
