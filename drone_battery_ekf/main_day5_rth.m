@@ -10,7 +10,7 @@
 % Part 2: Monte Carlo - 500 random missions x 4 policies
 % Part 3: threshold sweep - safety vs wasted battery
 %
-% Run from the drone_battery_ekf folder. Full run: about 5-10 minutes.
+% Run from the drone_battery_ekf folder. Full run: about 4-5 minutes.
 % For a quick test set N_MC = 50 and N_SWEEP = 30 first.
 
 clear; clc; close all;

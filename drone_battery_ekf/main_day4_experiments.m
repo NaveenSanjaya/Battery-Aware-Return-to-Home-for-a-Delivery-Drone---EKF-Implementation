@@ -6,7 +6,7 @@
 %   E7  does uncertainty grow where the OCV curve is flat?
 %   E8  summary: charge counting vs stages A, B, C over 20 random flights
 %
-% Run from the drone_battery_ekf folder. E8 flies 300 missions (about 1-3 min).
+% Run from the drone_battery_ekf folder. E8 flies 300 missions (whole script: about 30 s).
 
 clear; clc; close all;
 root = fileparts(mfilename('fullpath'));
