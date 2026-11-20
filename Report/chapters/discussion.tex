@@ -20,7 +20,7 @@ The largest errors came from differences between the model and the real battery,
 
 The filter cannot detect this error from its own signals. Stage~A's innovations looked normal, while its true error was about 5 to 20 times its own $\sigma$ (NEES 30--400, Table~\ref{tab:r_e8}). A constant voltage error is absorbed into a constant SoC offset: the filter shifts its SoC until the predicted voltage matches, so the innovations stay small while the SoC is wrong. Only a simulation, where the true SoC is known, reveals this. Learning the resistance removed most of the error, but a large enough model error (E6) defeats every version of the filter, and charge counting then performs better.
 
-A more advanced filter, such as an unscented Kalman filter or a particle filter, would not fix this. With a perfect model the EKF's error was only 0.12\%, so the tangent-line approximation is not the limit; a different filter would inherit the same model error.
+A more advanced filter, such as an unscented Kalman filter or a particle filter~\cite{purdue_jate_comparison}, would not fix this. With a perfect model the EKF's error was only 0.12\%, so the tangent-line approximation is not the limit; a different filter would inherit the same model error.
 
 Tuning mainly sets how cautious the filter is (E5); it is slightly cautious on purpose, because the return-home rule turns its uncertainty into a safety margin.
 
@@ -37,7 +37,7 @@ Charge counting becomes too optimistic with an aged battery or a sensor that rea
 \section{Limitations and future work}\label{sec:d_limitations}\label{sec:d_future}
 
 \begin{itemize}
-  \item \textbf{Simulation only.} Real logs lack the true SoC but could test the voltage model.
+  \item \textbf{Simulation only.} Real logs~\cite{cmu_dji_dataset} lack the true SoC but could test the voltage model.
   \item \textbf{Typical battery data.} Typical OCV curve, not measured; no temperature effects.
   \item \textbf{Simple return model.} Normal errors, straight path, constant cruise current.
   \item \textbf{Bias and capacity.} Calibrate the bias at rest; estimate capacity between flights.

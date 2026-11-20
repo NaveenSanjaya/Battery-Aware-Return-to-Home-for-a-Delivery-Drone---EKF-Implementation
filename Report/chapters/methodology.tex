@@ -147,7 +147,7 @@ Three versions (stages) are compared: \textbf{stage A} estimates only the SoC an
 
 A larger measurement noise $R_v$ did not help (2.49\% error), because the error always pushes the same way. Estimating $R_0$ did, because a drop that appears only under load must come from the resistance. This gave stage~B. The 10\,mV allowance $\sigma_{\text{model}}$ was then chosen because it kept stage~B honest (98\% of the time inside its band over 20 test flights, against 90\% without it).
 
-\label{sec:m_ekf_choice}\textbf{Why stage C is used for decisions.} Within one flight, stage~C cannot separate the bias, the capacity and the resistance. Small bias and resistance errors change the expected voltage by
+\label{sec:m_ekf_choice}\textbf{Why stage C is used for decisions.} At a steady current, stage~C cannot separate the bias from the resistance, and within one flight it cannot separate the bias from the capacity. Small bias and resistance errors change the expected voltage by
 \begin{equation}
   \delta V \approx \hat{R}_0\, \delta b - (I_m - \hat{b})\, \delta R_0 ,
   \label{eq:m_confound}

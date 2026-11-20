@@ -55,7 +55,7 @@ For example, a sensor reading 0.5\,A too high makes the SoC of a 5\,Ah battery 2
 \section{Using the EKF to estimate the SoC}\label{sec:bg_kf}
 %--------------------------------------------------------------------------------------------------
 
-\label{sec:bg_kf_idea}\label{sec:bg_ss}\label{sec:bg_qr}In this application, charge counting provides the prediction of the SoC and the measured voltage provides the correction. The general model is $x_k = f(x_{k-1}, u_k) + w_k$ and $z_k = h(x_k, u_k) + v_k$, where $w_k$ and $v_k$ are random errors with covariances $Q$ and $R_v$.\label{eq:bg_process} Table~\ref{tab:bg_mapping} lists what each part stands for here.
+\label{sec:bg_kf_idea}\label{sec:bg_ss}\label{sec:bg_qr}In this application, charge counting provides the prediction of the SoC and the measured voltage provides the correction~\cite{mathworks_ekf_battery}. The general model is $x_k = f(x_{k-1}, u_k) + w_k$ and $z_k = h(x_k, u_k) + v_k$, where $w_k$ and $v_k$ are random errors with covariances $Q$ and $R_v$~\cite{welch2006intro,mathworks_kf_videos}.\label{eq:bg_process} Table~\ref{tab:bg_mapping} lists what each part stands for here.
 
 \begin{table}[htbp]
   \centering

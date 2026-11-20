@@ -20,7 +20,7 @@ Listing~\ref{lst:i_ekf_core} shows one EKF step from \texttt{ekf\_step.m}. It fo
 \begin{itemize}
   \item \textbf{Predict} (lines 16--30): move the state forward~\eqref{eq:m_f_soc}--\eqref{eq:m_f_r0}, build $F$, $G$ and $Q$~\eqref{eq:m_F},~\eqref{eq:m_Q}, and grow the uncertainty;
   \item \textbf{Compare} (lines 33--39): compute the expected voltage~\eqref{eq:m_h}, the innovation, $H$ and $S$;
-  \item \textbf{Correct} (lines 42--46): apply the gain and the Joseph-form covariance update~\eqref{eq:m_joseph}.
+  \item \textbf{Correct} (lines 42--46): apply the gain and the Joseph-form covariance update (Section~\ref{sec:m_ekf_init}).
 \end{itemize}
 With only one measurement, $S$ is a single number, so the gain needs a division rather than a matrix inverse. The code always carries all five states; a stage that does not estimate a state gives it zero uncertainty and zero process noise, so it never changes.
 
